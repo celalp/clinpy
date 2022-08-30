@@ -1,7 +1,6 @@
 import pandas as pd
 import sqlalchemy as sql
 from sqlalchemy.orm import Session
-from pytxdb import *
 import pyranges
 from .utils import calc_overlap
 import numpy as np
@@ -99,31 +98,27 @@ class Project:
                                        autoload=True, autoload_with=self.db)
         query = sql.select(table.c.chrom, table.c.start, table.c.end, table.c.strand)
 
+        if not uniq:
+            query = query.add_columns(sample_to_junction.c.samplename, sample_to_junction.c.uniq_map,
+                                      sample_to_junction.c.multi_map)
+            query = query.join(sample_to_junction, table.c.id == sample_to_junction.c.junction)
+
         if cohort is not None:
             sample_table = sql.Table("samples", self.metadata, autoload=True, autoload_with=self.db)
+            samples = sql.select(sample_table.c.study_id).filter(sample_table.c.cohort.in_(cohort))
 
-            samples = sql.select(sample_table.c.study_id).where(sample_table.c.cohort).in_(cohort). \
-                scalar_subquery()
+            junctions = sql.select(sample_to_junction.c.junction).distinct(). \
+                filter(sample_to_junction.c.samplename.in_(samples))
 
-            junctions = sql.select(sample_to_junction.c.junction, sample_to_junction.c.samplename,
-                                   sample_to_junction.c.uniq_map, sample_to_junction.c.multi_map). \
-                where(sample_to_junction.c.samplename.in_(samples)).subquery()
-
-            query = query.join(junctions, table.c.id == junctions.c.junction)
+            query = query.filter(table.c.id.in_(junctions))
 
         if samples is not None:
-            junctions = sql.select(sample_to_junction.c.junction, sample_to_junction.c.samplename,
-                                   sample_to_junction.c.uniq_map, sample_to_junction.c.multi_map). \
-                where(sample_to_junction.c.samplename.in_(samples)).subquery()
+            junctions = sql.select(sample_to_junction.c.junction). \
+                filter(sample_to_junction.c.samplename.in_(samples)).distinct()
 
-            query = query.join(junctions, table.c.id == junctions.c.junction)
+            query = query.filter(table.c.id.in_(junctions))
 
-        if uniq:
-            query = query.distinct()
-        else:
-            query.add_columns(junctions.c.uniq_map, junctions.c.multi_map, junctions.c.samplename)
-
-        results = self.session.execute(query)
+        results = self.session.execute(query).fetchall()
         results = pd.DataFrame(results)
         results.columns = list(self.session.execute(query).keys())
 
@@ -155,6 +150,7 @@ class Junction:
     def __init__(self, chrom, start, end, strand, uniq_map, multi_map):
         """
         initiate a junction instance bare bones
+        :param chrom chrom
         :param chrom chrom
         :param start start
         :param end end
