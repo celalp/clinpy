@@ -26,7 +26,7 @@ if __name__=="__main__":
     parser.add_argument('-g', '--gene_expression_file', type=str, help='merged gene expression file', action="store")
     parser.add_argument('-t', '--transcript_expression', type=str, help='merged isoform expression file',
                         action="store")
-    parser.add_argument('--project_db', help='project database, will be a sqlite database to be used later')
+    parser.add_argument('-o', '--output', help='project database, will be a sqlite database to be used later')
     args = parser.parse_args()
 
 

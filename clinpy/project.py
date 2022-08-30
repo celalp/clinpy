@@ -18,7 +18,7 @@ class Project:
         self.session = Session(self.db)
         self.metadata = sql.MetaData(self.db)
         self.metadata.reflect(bind=self.db)
-        self.genome=genome
+        self.genome = genome
 
     def samples(self, cohort=None, ids=None):
         """
@@ -28,7 +28,7 @@ class Project:
         :return:
         """
         table = sql.Table("samples", self.metadata, autoload=True, autoload_with=self.db)
-        query = sql.Select(table.c.study_id, table.c.tm_id, table.c.cohort, table.c.user_annot)
+        query = sql.select(table.c.study_id, table.c.tm_id, table.c.cohort, table.c.user_annot)
         if cohort is not None:
             query = query.where(table.c.cohort.in_(cohort))
 
@@ -88,18 +88,20 @@ class Project:
         :param cohort: name of the cohort to get
         :param uniq: return unique junctions not grouped by sample
         :param samples: return junctions from those samples
+        :param df: return a dataframe otherwise Junction instance
         :return: a dataframe of junctions and reads mapping to them, if uniq is
         selected mappings will not be there since different samples will have different
         numbers of reads mapping to each junction.
         """
 
         table = sql.Table("junctions", self.metadata, autoload=True, autoload_with=self.db)
+        sample_to_junction = sql.Table("sample_to_junction", self.metadata,
+                                       autoload=True, autoload_with=self.db)
         query = sql.select(table.c.chrom, table.c.start, table.c.end, table.c.strand)
 
         if cohort is not None:
             sample_table = sql.Table("samples", self.metadata, autoload=True, autoload_with=self.db)
-            sample_to_junction = sql.Table("sample_to_junction", self.metadata,
-                                           autoload=True, autoload_with=self.db)
+
             samples = sql.select(sample_table.c.study_id).where(sample_table.c.cohort).in_(cohort). \
                 scalar_subquery()
 
@@ -128,14 +130,13 @@ class Project:
         if df:
             return results
         elif not df and not uniq:
-            juncs=[]
+            juncs = []
             for chrom, start, end, strand, uniq_map, multi_map in zip(results.chrom, results.start, results.end,
-                                                              results.strand, results.uniq, results.multi):
+                                                                      results.strand, results.uniq, results.multi):
                 juncs.append(Junction(chrom, start, end, strand, uniq_map, multi_map))
                 return juncs
         else:
             raise NotImplementedError("returning unique junctions as a junction class is not implemented")
-
 
     def __str__(self):
         """
@@ -175,7 +176,7 @@ class Junction:
         :param genome: genome class instance
         :return: genes that match the start and end of the junction and if there are other genes in the middle
         """
-        table = sql.Table("genes", genome.metadata, autoload=True, autoload_with=self.genome)
+        table = sql.Table("genes", genome.metadata, autoload=True, autoload_with=genome)
         # find the start and end genes, there might be others in between
         query = sql.select(table).filter(sql.and_(table.c.chrom == self.chrom,
                                                   table.c.strand == self.strand)). \
@@ -208,9 +209,9 @@ class Junction:
         :return: a pyranges or dataframe with all the transcript that match the description.
         """
 
-        gene_table = sql.Table("genes", genome.metadata, autoload=True, autoload_with=self.genome)
+        gene_table = sql.Table("genes", genome.metadata, autoload=True, autoload_with=genome)
         tx_table = sql.Table("transcripts", genome.metadata,
-                             autoload=True, autoload_with=self.genome)
+                             autoload=True, autoload_with=genome)
 
         subq = sql.select(gene_table.c.id, gene_table.c.chrom, gene_table.c.strand).subquery()
         query = sql.select(tx_table, subq.c.chrom, subq.c.strand). \
@@ -297,7 +298,7 @@ class Junction:
                                             junctions_table.c.end <= self.end + tolerance[1])).scalar_subquery()
 
             query = sql.select(sample_to_junction.c.samplename).where(sample_to_junction.c.junction.in_(subq))
-            sample_ids = self.project.session.execute(query).fetchall()
+            sample_ids = project.session.execute(query).fetchall()
             return sample_ids
 
         else:
@@ -306,7 +307,7 @@ class Junction:
             else:
                 # need to get all junctions and perform overlaps and not get self
                 query = subq.add_columns(junctions_table.c.start, junctions_table.c.end)
-                junctions = self.project.session.execute(query).fetchall()
+                junctions = project.session.execute(query).fetchall()
                 overlapping = []
                 for junction in junctions:
                     if reciprocal:
@@ -324,7 +325,7 @@ class Junction:
                             continue
                 sample_query = sql.select(sample_to_junction.c.samplename).where(
                     sample_to_junction.c.junction.in_(overlapping))
-                sample_ids = self.project.session.execute(sample_query).fetchall()
+                sample_ids = project.session.execute(sample_query).fetchall()
                 return sample_ids
 
     def new_transcript(self, features, genome, sequence=True, type="nuc"):
@@ -370,4 +371,3 @@ class Junction:
         """
         "A junction in {} starting at {} and ending at {} on strand {}".format(self.chrom, self.start,
                                                                                self.end, self.strand)
-
