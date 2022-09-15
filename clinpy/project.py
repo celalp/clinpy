@@ -3,6 +3,8 @@ import sqlalchemy as sql
 from sqlalchemy.orm import Session
 from .junction import Junction
 
+#TODO way to insert filtered junctions with a filter junction
+
 class Project:
     def __init__(self, db, genome):
         """
@@ -15,6 +17,15 @@ class Project:
         self.metadata = sql.MetaData(self.db)
         self.metadata.reflect(bind=self.db)
         self.genome = genome
+
+    def view_meta_fields(self):
+        table = sql.Table("samples", self.metadata, autoload=True, autoload_with=self.db)
+        query=sql.select(table.c.sample_meta)
+        fields=self.session.execute(query).fetchone()
+        fields=list(fields[0].keys())
+        fields=["sample_id", "cohort"] + fields
+        return fields
+
 
     def samples(self, cohort=None):
         """
@@ -30,7 +41,12 @@ class Project:
         results = self.session.execute(query).fetchall()
         results = pd.DataFrame(results)
         results.columns = list(self.session.execute(query).keys())
-        return results
+
+        mandatory=results.loc[:,["sample_id", "cohort"]]
+        others=pd.DataFrame.from_records(results.sample_meta.to_list())
+        final=pd.concat(mandatory, others, axis=1)
+
+        return final
 
     def add_annotation(self, to, annot):
         """
@@ -42,7 +58,7 @@ class Project:
         """
         table = sql.Table("samples", self.metadata, autoload=True, autoload_with=self.db)
 
-        command = sql.insert(table).values(user_annot=annot).where(table.c.study_id == to)
+        command = sql.update(table).values(sample_meta={"user_annot": annot}).where(table.c.sample_id == to)
         self.session.execute(command)
         self.session.commit()
 
@@ -90,7 +106,7 @@ class Project:
                 raise ValueError(
                     "for wide format you need to specify either TPM, expectd count or isopct (transcripts only)")
 
-    def junctions(self, cohort=None, uniq=False, samples=None, df=True):
+    def junctions(self, cohort=None, uniq=False, samples=None, df=True, filtered=True):
         """
         returns a dataframe of junctions this is different than the junction class
         instances returned from Sample.junctions
@@ -103,9 +119,15 @@ class Project:
         numbers of reads mapping to each junction.
         """
 
-        table = sql.Table("junctions", self.metadata, autoload=True, autoload_with=self.db)
-        sample_to_junction = sql.Table("sample_to_junction", self.metadata,
+        if filtered:
+            table = sql.Table("junctions", self.metadata, autoload=True, autoload_with=self.db)
+            sample_to_junction = sql.Table("sample_to_junction", self.metadata,
                                        autoload=True, autoload_with=self.db)
+        else:
+            table = sql.Table("all_junctions", self.metadata, autoload=True, autoload_with=self.db)
+            sample_to_junction = sql.Table("sample_to_alljunction", self.metadata,
+                                           autoload=True, autoload_with=self.db)
+
         query = sql.select(table.c.chrom, table.c.start, table.c.end, table.c.strand)
 
         if not uniq:
@@ -155,7 +177,7 @@ class Project:
         return "{} cohorts with names {} and {} samples respectively".format(len(results[0].to_list()),
                                                                              cohorts, num_samples)
 
-    def search_for_junctions(self, gr, samples=None, unique=False):
+    def search_for_junctions(self, gr, samples=None, unique=False, filtered=True):
         """
         search a given region for junctions
         :param gr: a pyranges
@@ -164,9 +186,14 @@ class Project:
         other data as well
         :return: a dataframe of junctions that are in a given region
         """
-        junctions = sql.Table("junctions", self.metadata, autoload=True, autoload_with=self.db)
-        sample_to_junction = sql.Table("sample_to_junction", self.metadata,
-                                       autoload=True, autoload_with=self.db)
+        if filtered:
+            junctions = sql.Table("junctions", self.metadata, autoload=True, autoload_with=self.db)
+            sample_to_junction = sql.Table("sample_to_junction", self.metadata,
+                                           autoload=True, autoload_with=self.db)
+        else:
+            junctions = sql.Table("all_junctions", self.metadata, autoload=True, autoload_with=self.db)
+            sample_to_junction = sql.Table("sample_to_alljunction", self.metadata,
+                                           autoload=True, autoload_with=self.db)
 
         query = sql.select(junctions.c.chrom, junctions.c.start, junctions.c.end, junctions.c.strand).filter(
             sql.and_(junctions.c.chrom==str(gr.Chromosomes), junctions.c.strand==str(gr.Strand))).filter(
