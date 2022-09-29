@@ -1,7 +1,8 @@
 import pandas as pd
 import sqlalchemy as sql
 from sqlalchemy.orm import Session
-from .junction import Junction
+from clinpy.junction import Junction
+from functools import partial
 
 #TODO way to insert filtered junctions with a filter junction
 
@@ -214,3 +215,22 @@ class Project:
         results.columns=columns
 
         return results
+
+    def filter_junctions(self, junc_func, skip_existing=True, **kwargs):
+        """
+        take a function, fill it's arguments and apply to each sample junctions, if the sample is already
+        in the fitered junctions skip that sample if skip existing otherwise overwrite. The function needs to take
+        a dataframe of known columns and return a dataframe (with fewer rows hopefully) with the same columns.
+
+        The function can accept an arbitrary number of parameters but one of them must be named "df" this is the
+        dataframe of unfiltered junctions. The parameters are passed normally and then handled by functools partial
+
+        The columns are: chrom, start, end, strand, uniq_map, multi_map, samplename
+
+        :param junc_func: a function takes a dataframe returns a dataframe
+        :param skip_existing: if a sample is already in filtered junctions skip otherwise overwrite
+        :param kwargs: arguments for the function except for the dataframe
+        :return:
+        """
+        filled_func=partial(junc_func, kwargs)
+        pass

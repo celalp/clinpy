@@ -1,239 +1,284 @@
-from sqlalchemy import MetaData, Table, select, insert
-from clinpy.database.base_tables import *
-from clinpy.database.rna_tables import *
 import argparse as arg
-from sqlalchemy import create_engine
-import pandas as pd
-import os
-import gc
 from datetime import datetime
+from pysam import VariantFile
+import yaml
 
-def modify_strand(df):
-    if df["strand"]==0: #undefined
-        return "."
-    elif df["strand"]==1: #+
-        return "+"
-    elif df["strand"]==2: #-
-        return "-"
-    else:
-        raise ValueError("unknown value in strand column")
+from sqlalchemy import MetaData
+from sqlalchemy.orm import Session
 
-if __name__=="__main__":
+from clinpy.database.rna_tables import *
+from clinpy.utils.rna_functions import *
+from clinpy.utils.snp_functions import *
+from clinpy.utils.utils import dict_to_engine
+
+#TODO multicore?
+if __name__ == "__main__":
     parser = arg.ArgumentParser(description='add to a project database with genome annotations junctions'
                                             'and expression data')
-    parser.add_argument('-s', '--samples', type=str, help='tab separated sample metadata must include columns sample_id and cohort',
-                        action="store")
-    parser.add_argument('-f', '--files', type=str, help='files file a tsv that contains the following columns and no header:'
-                                                        'samplename, gene_expression_file_path, isoform_expression_file_path, junction_file_path, '
-                                                        'filtered_junction_file_path cells either or both of the junction table can be empty')
-    parser.add_argument('-o', '--output', help='project database, will be a sqlite database to be used later')
-    parser.add_argument('-c', '--create', help="create database otherwise add to it", type=bool, action="store_true")
-    parser.add_argument('--min_junc_reads', help="min uniq reads for a junction to be considered", default=10, action="store", type=int)
+    parser.add_argument('-y', '--yaml', help="config.yaml file see readme for details", type=str, action="store",
+                        default="config.yaml")
     args = parser.parse_args()
 
-    print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "Creating database " + args.output)
+    if args.yaml is None:
+        raise ValueError("no yaml file proveded")
 
-    if not args.create and os.path.isfile(args.output):
-        raise FileExistsError("database already exists")
+    if not os.path.isfile(args.yaml):
+        raise FileNotFoundError("count not find {}".format(args.yaml))
 
-    engine = create_engine("sqlite:///{}".format(args.output))
+    with open(args.yaml) as y:
+        params = yaml.safe_load(y)
+
+    engine = dict_to_engine(params["output"])
     project_meta = MetaData(bind=engine)
-    session=Session(engine)
+    session = Session(engine)
 
-    sample_meta = pd.read_csv(arg.samples, header=0, sep="\t")
-    sample_meta["user_annot"]=""
-    cols=sample_meta.columns
+    if params["output"]["create"]:
+        if os.path.isfile(params["output"]["name"]):
+            raise FileExistsError("database already exists")
+        else:  # create the database
+            project_meta.reflect()
+            sample_table = dict_to_table(params["sample_meta"]["columns"], "samples", project_meta)
+            sample_table.create()
+            print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "Creating database " + params["output"]["name"])
+    else:
+        # just get what kind of tables there
+        project_meta.reflect()
 
-    if "sample_id" not in cols:
+    sample_meta = pd.read_csv(params["sample_meta"]["file"], header=0, sep="\t")
+    file_cols = list(sample_meta.columns)
+    file_cols = [col.lower() for col in file_cols]
+    sample_meta.columns = file_cols
+
+
+    # these are mandatory columns if they are not there there will be an error
+    if "sample_id" not in file_cols:
         raise ValueError("sample_id column must be present in sample metadata")
 
-    if "cohort" not in cols:
+    if "cohort" not in file_cols:
         raise ValueError("cohort column must be preset in sample metadata")
-    if args.create:
-        ProjectBase.metadata.create_all(engine)
 
-    project_meta.reflect()
+    # pandas will check for columns, if there are extra ones they will be omitted if missing ones there will be an error
+    sample_meta = sample_meta[list(params["sample_meta"]["columns"].keys())]
+    # if there are extra samples or duplicates this will fail with a unique constraint error
+    sample_meta.to_sql("samples", engine, index=False, if_exists="append")
 
-    # sample id and cohort are mandatory columns the rest will be converted to json and will be inserted that way
-    man_columns=["sample_id", "cohort"]
-    mandatory = sample_meta.loc[:, man_columns]
-    mandatory = mandatory.to_dict(orient="records")
-    others = sample_meta.drop(columns=man_columns)
-    others = others.to_dict(orient="records")
+    mods = params["data"]["modalities"].keys()
+    for modality in mods:
+        if modality == "rna":
+            file = params["data"]["modalities"][modality]["file"]
+            columns = params["data"]["modalities"][modality]["columns"]
+            files = pd.read_csv(file, header=None, sep="\t")
+            if columns != files.columns:
+                raise ValueError("the columns do not match the config file")
+            if "samplename" not in files.columns:
+                raise ValueError(
+                    "samplename columns is missing from {}".format(["data"]["modalities"][modality]["file"]))
 
-    sample_meta = []
-    for meta, man in zip(others, mandatory):
-        man["sample_meta"] = meta
-        sample_meta.append(man)
+            if "rna_variants" in columns or "filtered_rna_variants" in columns:
+                if "vcf_config" not in params["data"]["modalities"][modality].keys():
+                    raise ValueError("did not provide a vcf config file")
+                else:
+                    with open(params["data"]["modalities"][modality]["vcf_config"]) as y:
+                        vcf_params = yaml.safe_load(y)
 
+            # go over the columns and create tables
+            ProjectBase.metadata.reflect(engine) # so we know the samples table is there
+            for column in columns:
+                if column == "samplename":
+                    continue
+                elif column == "gene_expression":
+                    GeneExpression.__table__.create(engine)
+                elif column == "isoform_expression":
+                    TranscriptExpression.__table__.create(engine)
+                elif column == "unfiltered_junctions":
+                    AllJunctions.__table__.create(engine)
+                    SampleToAllJunction.__table__.create(engine)
+                elif column == "filtered_junctions":
+                    FilteredJunctions.__table__.create(engine)
+                    SampleToJunction.__table__.create(engine)
+                elif column == "rna_variants":
+                    RNAVariants.__table__.create(engine)
+                    vcf_files = [file for file in files["rna_variants"].to_list() if not pd.isna(file)]
+                    fields, formats = compare_fields(vcf_files, vcf_params["info"]["name"], vcf_params["not_same"],
+                                                     vcf_params["info"]["sep"])
+                    generate_variant_tables(vcf_params, fields, formats, project_meta,
+                                            params["sample_meta"]["columns"]["sample_id"]["type"], rna=True,
+                                            filtered=False)
+                elif column == "filtered_rna_variants":
+                    FilteredRNAVariants.__table__.create(engine)
+                    vcf_files = [file for file in files["filtered_rna_variants"].to_list() if not pd.isna(file)]
+                    filt_fields, filt_formats = compare_fields(vcf_files, vcf_params["info"]["name"],
+                                                               vcf_params["not_same"],
+                                                               vcf_params["info"]["sep"])
+                    generate_variant_tables(vcf_params, filt_fields, filt_formats, project_meta,
+                                            params["sample_meta"]["columns"]["sample_id"]["type"], rna=True,
+                                            filtered=True)
 
-    sample_table=Table("samples", project_meta, autoload=True, autoload_with=engine)
+            files = files.to_dict(orient="records")  # create a dict
+            for data in files:
+                sample = data["samplename"]
+                for dat_type in data.keys():
+                    if dat_type == "gene_expression" and not pd.isna(data[dat_type]):
+                        print("[" + datetime.now().strftime(
+                            "%Y/%m/%d %H:%M:%S") + "] " + "Adding gene expression for " + sample)
+                        import_expression(data[dat_type], sample, engine, gene=True)
 
-    sample_meta = []
-    for meta, man in zip(others, mandatory):
-        man["sample_meta"] = meta
-        sample_meta.append(man)
+                    elif dat_type == "isoform_expression" and not pd.isna(data[dat_type]):
+                        print("[" + datetime.now().strftime(
+                            "%Y/%m/%d %H:%M:%S") + "] " + "Adding isoform expression for " + sample)
+                        import_expression(data[dat_type], sample, engine, gene=False)
 
-    # this will check the unique constraint
-    sample_insert = insert(sample_table).values(sample_meta)
-    engine.execute(sample_insert)
+                    elif dat_type == "unfiltered_junctions" and not pd.isna(data[dat_type]):
+                        print("[" + datetime.now().strftime(
+                            "%Y/%m/%d %H:%M:%S") + "] " + "Adding junctions for " + sample)
 
-    files=pd.read_csv(args.files, sep="\t", header=None)
-    samplenames=files[0].to_list()
-    gene_expression=files[1].to_list()
-    isoform_expression=files[2].to_list()
-    all_juncs=files[3].to_list()
-    filtered_juncs=files[4].to_list()
-
-#insert sample data will also add additional user_annot field
-
-# I'm not checking if your gene/tx names match the genome, there is no genome involved here
-# that's up to the user
-    for sample, gene, tx, all_junc, junc in zip(samplenames, gene_expression, isoform_expression,
-                                                all_juncs, filtered_juncs):
-        print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "Adding gene expression for " + sample)
-        g=pd.read_csv(gene, header=0, sep="\t")
-        g["samplename"]=sample
-        g=g.drop(columns=["length", "effective_length", "transcript_id(s)"])
-        g.columns=["samplename", "gene", "expected_count", "tpm", "fpkm"]
-        g.to_sql("gene_expression", engine, if_exists="append", index=False)
-
-        print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "Adding isoform expression for " + sample)
-        t=pd.read_csv(tx, header=0, sep="\t")
-        t["samplename"]=sample
-        t=t.drop(columns=["length", "effective_length", "gene_id"])
-        t.columns=["samplename", "transcript", "expected_count", "tpm", "fpkm", "isopct"]
-        t.to_sql("transcript_expression", engine, if_exists="append", index=False)
-
-        print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "Adding junctions for " + sample)
-        ja=pd.read_csv(all_junc, header=None, sep="\t", low_memory=False)
-        ja["samplename"]=sample
-        ja.columns=["chrom", "start", "end", "strand", "motif", "annotated",
-                    "uniq_map", "multi_map", "max_ohang", "samplename"]
-        # star annotated is useless because it is actually not the annotated but annotated+detected in
-        # first pass
-        if not pd.isna(junc):
-            ja=ja.drop(columns=["max_ohang", "motif", "annotated"])
-            ja["strand"]=ja.apply(modify_strand, axis=1)
-            ja=ja[(ja.uniq_map>=args.min_junc_reads) & (junc.strand!=".")]
-            ja.to_sql("temp_all_junc", engine, if_exists="append", index=False)
-
-        if not pd.isna(junc):
-        #maybe check the column names?
-            print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "Adding filtered junctions for " + sample)
-            jf=pd.read_csv(junc, header=None, sep="\t")
-            jf["samplename"]=sample
-            jf.columns = ["samplename", "chrom", "start", "end", "strand", "motif", "annotated",
-                      "uniq_map", "multi_map", "max_ohang"]
-            jf=jf.drop("max_ohang", "motif", "annotated")
-            jf["strand"]=jf.apply(modify_strand, axis=1)
-            jf.to_sql("temp_filt_junc", engine, if_exists="append", index=False)
-        else:
-            print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "No filtered junctions for " + sample)
-
-    #init tables
-    project_meta.reflect()
-    junc_temp = Table("temp_all_junc", project_meta, autoload=True, autoload_with=engine)
-    all_junc_table = Table("all_junctions", project_meta, autoload=True, autoload_with=engine)
-    filt_junc_table = Table("junctions", project_meta, autoload=True, autoload_with=engine)
-    samp_to_alljunc = Table("sample_to_alljunction", project_meta, autoload=True, autoload_with=engine)
-    samp_to_junc = Table("sample_to_junction", project_meta, autoload=True, autoload_with=engine)
-
-    if "temp_filt_junc" in project_meta.tables.keys():
-        filt_temp = Table("temp_filt_junc", project_meta, autoload=True, autoload_with=engine)
-
-    if args.create:
-        print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "Creating junctions table")
-        # this means the all_junctions and junction tables are empty
-        distinct_all_junc=select(junc_temp.c.chrom, junc_temp.c.start, junc_temp.c.end,
-                                  junc_temp.c.strand).distinct()
-        distinct_all_junc=session.execute(distinct_all_junc).fetchall()
-        distinct_all_junc=pd.DataFrame(distinct_all_junc)
-        distinct_all_junc.columns=["chrom", "start", "end", "strand"]
-        # this may take a while and run out of memory probably need a generator
-        distinct_all_junc.to_sql("all_junctions", engine, index=False, if_exists="append")
-        del(distinct_all_junc)
-        gc.collect()
-
-        if "temp_filt_junc" in project_meta.tables.keys():
-            print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "Creating filtered junctions table")
-            distinct_filt_junc = select(filt_temp.c.chrom, filt_temp.c.start, filt_temp.c.end,
-                                       filt_temp.c.strand).distinct()
-            distinct_filt_junc = session.execute(distinct_filt_junc).fetchall()
-            if len(distinct_filt_junc) > 0:
-                distinct_filt_junc = pd.DataFrame(distinct_filt_junc)
-                distinct_filt_junc.columns = ["chrom", "start", "end", "strand"]
-                distinct_filt_junc.to_sql("junctions", engine, index=False, if_exists="append")
-                del (distinct_filt_junc)
-                gc.collect()
-
-    else:
-        # this means there are already files in junctions and alljunctions tables so we need to figure
-        # out what the junction ids are if they are in the table and insert new ones
-        print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "Creating junctions table")
-        new_juncs=select(junc_temp.c.chrom, junc_temp.c.start, junc_temp.c.end,
-                                  junc_temp.c.strand).distinct().join(all_junc_table, (junc_temp.c.chrom == all_junc_table.c.chrom) &
-                                                                      (junc_temp.c.start == all_junc_table.c.start) &
-                                                                      (junc_temp.c.end == all_junc_table.c.end) &
-                                                                      (junc_temp.c.strand == all_junc_table.c.strand)).\
-            add_columns(all_junc_table.c.id).filter(all_junc_table.c.id==None)
-        new_juncs=pd.DataFrame(session.execute(new_juncs).fetchall())
-        new_juncs.columns=["chrom", "start", "end", "strand", "id"]
-        new_juncs=new_juncs.drop(columns=["id"])
-        new_juncs.to_sql("all_junctions", engine, if_exists="append", index=False)
-
-        # repeat for filtered junctions
-        if "temp_filt_junc" in project_meta.tables.keys():
-            print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "Creating filtered junctions table")
-            distinct_filt_junc = select(filt_temp.c.chrom, filt_temp.c.start, filt_temp.c.end,
-                                        filt_temp.c.strand).distinct()
-            distinct_filt_junc = session.execute(distinct_filt_junc).fetchall()
-            if len(distinct_filt_junc) > 0:
-                new_juncs = select(filt_temp.c.chrom, filt_temp.c.start, filt_temp.c.end,
-                                   filt_temp.c.strand).distinct().join(filt_junc_table,
-                                                                       (filt_temp.c.chrom == filt_junc_table.c.chrom) &
-                                                                       (filt_temp.c.start == filt_junc_table.c.start) &
-                                                                       (filt_temp.c.end == filt_junc_table.c.end) &
-                                                                       (filt_temp.c.strand == filt_junc_table.c.strand)). \
-                    add_columns(filt_junc_table.c.id).filter(filt_junc_table.c.id == None)
-                new_juncs = pd.DataFrame(session.execute(new_juncs).fetchall())
-                new_juncs.columns = ["chrom", "start", "end", "strand", "id"]
-                new_juncs = new_juncs.drop(columns=["id"])
-                new_juncs.to_sql("junctions", engine, if_exists="append", index=False)
+                        import_temp_junction(data[dat_type], sample, engine,
+                                             min_junc_reads=params["modalities"]["rna"]["min_junction_reads"],
+                                             filtered=False)
 
 
-    # this is going to be very slow as numbers increase
-    print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "Creating junction mapping for all junctions")
-    query = select(junc_temp.c.samplename, junc_temp.c.uniq_map,
-                   junc_temp.c.multi_map).join(all_junc_table, (junc_temp.c.chrom == all_junc_table.c.chrom) &
-                                               (junc_temp.c.start == all_junc_table.c.start) &
-                                               (junc_temp.c.end == all_junc_table.c.end) &
-                                               (junc_temp.c.strand == all_junc_table.c.strand)). \
-        add_columns(all_junc_table.c.id)
-    junction_mapping = pd.DataFrame(session.execute(query).fetchall())
-    junction_mapping.columns=["samplename", "uniq_map", "multi_map", "junction"]
-    junction_mapping.to_sql("sample_to_alljunction", engine, index=False, if_exists="append")
-    del (junction_mapping)
-    gc.collect()
+                    elif dat_type == "filtered_junction" and not pd.isna(data[dat_type]):
+                        print("[" + datetime.now().strftime(
+                            "%Y/%m/%d %H:%M:%S") + "] " + "Adding filtered junctions for " + sample)
 
-    engine.execute("drop table if exists temp_all_junc")
+                        import_temp_junction(data[dat_type], sample, params["modalities"]["rna"]["min_junction_reads"],
+                                             filtered=True)
 
-    if "temp_filt_junc" in project_meta.tables.keys():
-        print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "Creating junction mapping for filtered junctions")
-        query = select(junc_temp.c.samplename, junc_temp.c.uniq_map,
-                       junc_temp.c.multi_map).join(all_junc_table, junc_temp.c.chrom == all_junc_table.c.chrom,
-                                                   junc_temp.c.start == all_junc_table.c.start,
-                                                   junc_temp.c.end == all_junc_table.c.end,
-                                                   junc_temp.c.strand == all_junc_table.c.strand). \
-            add_columns(all_junc_table.c.id)
-        samp_to_junc = Table("sample_to_junction", project_meta, autoload=True, autoload_with=engine)
-        junction_mapping = pd.DataFrame(session.execute(query).fetchall())
-        junction_mapping.columns = ["samplename", "uniq_map", "multi_map", "junction"]
-        junction_mapping.to_sql("sample_to_junction", engine, index=False, if_exists="append")
-        del (junction_mapping)
-        gc.collect()
 
-        engine.execute("drop table if exists temp_filt_junc")
+                    elif dat_type == "rna_variants" and not pd.isna(data[dat_type]):
+                        print("[" + datetime.now().strftime(
+                            "%Y/%m/%d %H:%M:%S") + "] " + "Adding variants for " + sample)
+                        vcf=VariantFile(data[dat_type])
+                        variants = parse_vcf(vcf, fields, formats,
+                                             type_dict=vcf_params["variant_impacts"],
+                                             field_name=vcf_params["info"]["name"],
+                                             field_split=vcf_params["info"]["sep"],
+                                             ignore=vcf_params["missing_impact"])
+                        import_temp_variants(variants, sample, engine, filtered=False)
+
+
+                    elif dat_type == "filtered_rna_variants" and not pd.isna(data[dat_type]):
+                        print("[" + datetime.now().strftime(
+                            "%Y/%m/%d %H:%M:%S") + "] " + "Adding filtered variants for " + sample)
+                        variants = parse_vcf(data[dat_type], fields, formats,
+                                             type_dict=vcf_params["variant_impacts"],
+                                             field_name=vcf_params["info"]["name"],
+                                             field_split=vcf_params["info"]["sep"],
+                                             ignore=vcf_params["missing_impact"])
+                        import_temp_variants(variants, sample, engine, filtered=True)
+
+                    else:
+                        raise NotImplementedError(
+                            "{} has not been implemented in clinpy you can create a feature request at "
+                            "https://github.com/celalp/clinpy".format(
+                                type))
+
+            # this is the second iteration, now that all the files are in the temp tables we can split
+            # them and put them where they belong
+            for column in columns:
+                if column=="unfiltered_junctions":
+                    add_to_junction_tables(engine, project_meta, session=session, create=params["output"]["create"],
+                                           filtered=False)
+                elif column == "filtered_junctions":
+                    add_to_junction_tables(engine, project_meta, session=session, create=params["output"]["create"],
+                                           filtered=True)
+                elif column == "rna_variants":
+                    add_to_variant_tables(engine, project_meta, session, fields, formats,
+                                          create=params["output"]["create"], filtered=False,
+                                          rna=True)
+                elif column == "filtered_rna_variants":
+                    add_to_variant_tables(engine, project_meta, session, fields, formats,
+                                          create=params["output"]["create"], filtered=True,
+                                          rna=True)
+                else:
+                    continue
+
+        elif modality == "snps":
+
+            file = params["data"]["modalities"][modality]["file"]
+            columns = params["data"]["modalities"][modality]["columns"]
+            files = pd.read_csv(file, header=None, sep="\t")
+            if columns != files.columns:
+                raise ValueError("the columns do not match the config file")
+            if "samplename" not in files.columns:
+                raise ValueError(
+                    "samplename columns is missing from {}".format(["data"]["modalities"][modality]["file"]))
+
+            if "vcf_config" not in params["data"]["modalities"][modality].keys():
+                raise ValueError("did not provide a vcf config file")
+            else:
+                with open(params["data"]["modalities"][modality]["vcf_config"]) as y:
+                    vcf_params = yaml.safe_load(y)
+
+            ProjectBase.metadata.reflect(engine) # to update things as we go along
+            if column == "samplename":
+                continue
+            elif column == "variants":
+                RNAVariants.__table__.create(engine)
+                vcf_files = [file for file in files["variants"].to_list() if not pd.isna(file)]
+                fields, formats = compare_fields(vcf_files, vcf_params["info"]["name"], vcf_params["not_same"],
+                                                 vcf_params["info"]["sep"])
+                generate_variant_tables(vcf_params, fields, formats, project_meta,
+                                        params["sample_meta"]["columns"]["sample_id"]["type"], rna=False,
+                                        filtered=False)
+            elif column == "filtered_rna_variants":
+                FilteredRNAVariants.__table__.create(engine)
+                vcf_files = [file for file in files["filtered_variants"].to_list() if not pd.isna(file)]
+                filt_fields, filt_formats = compare_fields(vcf_files, vcf_params["info"]["name"],
+                                                           vcf_params["not_same"],
+                                                           vcf_params["info"]["sep"])
+                generate_variant_tables(vcf_params, filt_fields, filt_formats, project_meta,
+                                        params["sample_meta"]["columns"]["sample_id"]["type"], rna=False,
+                                        filtered=True)
+
+            files = files.to_dict(orient="records")  # create a dict
+            for data in files:
+                sample = data["samplename"]
+                for dat_type in data.keys():
+                    if dat_type == "variants" and not pd.isna(data[dat_type]):
+                        print("[" + datetime.now().strftime(
+                            "%Y/%m/%d %H:%M:%S") + "] " + "Adding variants for " + sample)
+                        vcf=VariantFile(data[dat_type])
+                        variants = parse_vcf(vcf, fields, formats,
+                                             type_dict=vcf_params["variant_impacts"],
+                                             field_name=vcf_params["info"]["name"],
+                                             field_split=vcf_params["info"]["sep"],
+                                             ignore=vcf_params["missing_impact"])
+                        import_temp_variants(variants, sample, engine, filtered=False)
+
+
+                    elif dat_type == "filtered_variants" and not pd.isna(data[dat_type]):
+                        print("[" + datetime.now().strftime(
+                            "%Y/%m/%d %H:%M:%S") + "] " + "Adding filtered variants for " + sample)
+                        variants = parse_vcf(data[dat_type], fields, formats,
+                                             type_dict=vcf_params["variant_impacts"],
+                                             field_name=vcf_params["info"]["name"],
+                                             field_split=vcf_params["info"]["sep"],
+                                             ignore=vcf_params["missing_impact"])
+                        import_temp_variants(variants, sample, engine, filtered=True)
+
+                    else:
+                        raise NotImplementedError(
+                            "{} has not been implemented in clinpy you can create a feature request at "
+                            "https://github.com/celalp/clinpy".format(
+                                type))
+
+            for column in columns:
+                if column == "rna_variants":
+                    add_to_variant_tables(engine, project_meta, session, fields, formats,
+                                      create=params["output"]["create"], filtered=False,
+                                      rna=False)
+                elif column == "filtered_rna_variants":
+                    add_to_variant_tables(engine, project_meta, session, fields, formats,
+                                  create=params["output"]["create"], filtered=True,
+                                  rna=False)
+                else:
+                    continue
+
+        else:  # the list will increase as time goes on
+            raise NotImplementedError(
+                "{} has not been implemented in clinpy you can create a feature request at "
+                "https://github.com/celalp/clinpy".format(
+                    modality))
 
     print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "Done!")
-

@@ -1,7 +1,8 @@
-#TODO other tables for other modalities
+#TODO rna variants tables
 
 from sqlalchemy import Column, ForeignKey, Integer, String, Float
-from .base_tables import ProjectBase
+from clinpy.database.base_tables import ProjectBase
+
 
 
 class FilteredJunctions(ProjectBase):  # these are the junctions that pass the intense filtering described elsewhere
@@ -13,8 +14,8 @@ class FilteredJunctions(ProjectBase):  # these are the junctions that pass the i
     strand = Column(String(1))
 
 
-class AllJunctions(
-    ProjectBase):  # these are junctions that pass some basic QC that's it They are not processed the way filtered junctions are processed this is just for record keeping
+class AllJunctions(ProjectBase):  # these are junctions that pass some basic QC that's it They are not processed
+    # the way filtered junctions are processed this is just for record keeping
     __tablename__ = "all_junctions"
     id = Column(Integer, primary_key=True, autoincrement=True)
     chrom = Column(String)
@@ -57,3 +58,22 @@ class TranscriptExpression(ProjectBase):
     tpm = Column(Float)
     fpkm = Column(Float)
     isopct = Column(Float)
+
+class RNAVariants(ProjectBase):
+    __tablename__="rna_variants"
+    variant_id=Column(Integer, primary_key=True, index=True)
+    chrom=Column(String, index=True)
+    pos=Column(Integer)
+    id=Column(String)
+    ref=Column(String)
+    alt=Column(String)
+
+
+class FilteredRNAVariants(ProjectBase):
+    __tablename__="filtered_rna_variants"
+    variant_id=Column(Integer, primary_key=True, index=True)
+    chrom=Column(String, index=True)
+    pos=Column(Integer)
+    id=Column(String)
+    ref=Column(String)
+    alt=Column(String)

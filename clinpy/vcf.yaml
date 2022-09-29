@@ -1,0 +1,236 @@
+
+
+info:
+  name: CSQ #name of the impact field this is what ensembl uses
+  sep: "|"
+
+not_same: error # what to do if the field names are not identical in all the vcf options are "error" "union" "intersection"
+
+# ignore or error to avoid adding unknown types to database if ignore will not be added to the database
+missing_impact: ignore
+
+# these are variant impact fields they can be missing or in different orders but if there is a field that is not here will throw an
+# error or be ignored depending on setting above. Change index field as you see fit but more index means larger database and slower build
+variant_impacts:
+  consequence:
+    type: str
+    index: true
+  impact:
+    type: str
+    index: true
+  symbol:
+    type: str
+    index: true
+  gene:
+    type: str
+    index: true
+  feature_type:
+    type: str
+    index: true
+  feature:
+    type: str
+    index: true
+  biotype:
+    type: str
+    index: true
+  exon:
+    type: str
+    index: false
+  intron:
+    type: str
+    index: false
+  hgvsc:
+    type: str
+    index: false
+  hgvsp:
+    type: str
+    index: false
+  cdna_position:
+    type: str
+    index: false
+  cds_position: 
+    type: str
+    index: false
+  protein_position: 
+    type: str
+    index: false
+  amino_acids:
+    type: str
+    index: false
+  codons: 
+    type: str
+    index: false    
+  existing_variation: 
+     type: str
+     index: false
+  distance: 
+     type: int
+     index: false
+  strand:
+     type: str
+     index: false
+  flags:
+    type: str
+    index: false
+  variant_class:
+    type: str
+    index: true
+  symbol_source:
+    type: str
+    index: false
+  hgnc_id:
+    type: str
+    index: false
+  canonical:
+    type: bool
+    index: false
+  mane:
+    type: str
+    index: false
+  tsl:
+    type: str
+    index: false
+  appris:
+    type: str
+    index: false
+  ccds:
+    type: str
+    index: false
+  ensp:
+    type: str
+    index: false
+  swissprot:
+    type: str
+    index: false
+  trembl:
+    type: str
+    index: false
+  uniparc:
+    type: str
+    index: false
+  gene_pheno:
+    type: str
+    index: false
+  sift:
+    type: str
+    index: false
+  polyphen:
+    type: str
+    index: false
+  domains:
+    type: str
+    index: false
+  mirna:
+    type: str
+    index: false
+  hgvs_offset:
+    type: str
+    index: false
+  af:
+    type: float
+    index: true
+  afr_af:
+    type: float
+    index: false
+  amr_af:
+    type: float
+    index: false
+  eas_af:
+    type: float
+    index: false
+  eur_af:
+    type: float
+    index: false
+  sas_af:
+    type: float
+    index: false
+  aa_af:
+    type: float
+    index: false
+  ea_af:
+    type: float
+    index: false
+  exac_af:
+    type: float
+    index: true
+  exac_adj_af:
+    type: float
+    index: false
+  exac_afr_af:
+    type: float
+    index: false
+  exac_amr_af:
+    type: float
+    index: false
+  exac_eas_af:
+    type: float
+    index: false
+  exac_fin_af:
+    type: float
+    index: false
+  exac_nfe_af:
+    type: float
+    index: false
+  exac_oth_af:
+    type: float
+    index: false
+  exac_sas_af:
+    type: float
+    index: false
+  gnomad_af:
+    type: float
+    index: true
+  gnomad_afr_af:
+    type: float
+    index: false
+  gnomad_amr_af:
+    type: float
+    index: false
+  gnomad_asj_af:
+    type: float
+    index: false
+  gnomad_eas_af:
+    type: float
+    index: false
+  gnomad_fin_af:
+    type: float
+    index: false
+  gnomad_nfe_af:
+    type: float
+    index: false
+  gnomad_oth_af:
+    type: float
+    index: false
+  gnomad_sas_af:
+    type: float
+    index: false
+  max_af:
+    type: float
+    index: false
+  max_af_pops:
+    type: str
+    index: false
+  clin_sig:
+    type: str
+    index: false
+  somatic:
+    type: str
+    index: false
+  pheno:
+    type: str
+    index: false
+  pubmed:
+    type: str
+    index: false
+  motif_name:
+    type: str
+    index: false
+  motif_pos:
+    type: str
+    index: false
+  high_inf_pos:
+    type: str
+    index: false
+  motif_score_change:
+    type: str
+    index: false

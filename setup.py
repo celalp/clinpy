@@ -11,7 +11,9 @@ setup(
                       "pyranges",
                       "sqlalchemy",
                       "numpy",
-                      "pytxdb @ git+https://github.com/celalp/pytxdb@master"],
+                      "pysam",
+                      "pytxdb @ git+https://github.com/celalp/pytxdb@master",
+                      "pyyaml"],
     zip_safe=False,
     include_package_data=True
 )

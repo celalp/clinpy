@@ -1,10 +1,9 @@
 import pandas as pd
 import sqlalchemy as sql
 import pyranges
-from .utils import calc_overlap
+from clinpy.utils.utils import calc_overlap
 import numpy as np
 
-#TODO search genes for junction
 
 class Junction:
     def __init__(self, chrom, start, end, strand, uniq_map, multi_map):
