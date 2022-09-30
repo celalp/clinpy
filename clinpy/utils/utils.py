@@ -1,5 +1,6 @@
-from sqlalchemy import Table, Column, Integer, String, Float, Date, Boolean, JSON
+from sqlalchemy import Table, Column, Integer, String, Float, Date, Boolean, JSON, ForeignKey
 from sqlalchemy import create_engine
+
 
 def calc_overlap(int1, int2):
     """
@@ -22,12 +23,14 @@ def calc_overlap(int1, int2):
         return (int2[1] - int1[0]) / len1
 
 
-def str_to_type(st):
+def str_to_type(st, *args):
     """
     return sqlalchemy types based on a string, this is used to create tables dynamically
     :param st: a string
+    :param args tablename and column name if you are creating a foreing key
     :return: a sqlachemy type supported types are str, int, float, date, bool and json there is
-    limited support for json if not in the list return an error
+    limited support for json if not in the list return an error. you can create a foreign key if you provide the
+    tablename and column name in *args in that order
     """
     if st == "int":
         coltype = Integer
@@ -41,23 +44,48 @@ def str_to_type(st):
         coltype = Boolean
     elif st == "json":
         coltype = JSON
+    elif st == "fk":
+        coltype = ForeignKey("{}.{}".format(args[0], args[1]))
     else:
         raise NotImplementedError("{} is not an implemented column type".format(st))
     return coltype
 
 
 def dict_to_table(dict, tablename, meta):
+    """
+    create a sqlalchemy table from a dictionary, currently only a handful of things are supported
+    The dictionanry structure is a as follows:
+    {colname:
+        type: str, int, bool, json, date (only one)
+        pk: true
+        fk:
+            table:table for the foreign key
+            colname: column name for the foreignkey
+    }
+
+    all error checks (like if the table exists etc) are done by sqlalchemy
+
+    :param dict:  a dictionary (see above)
+    :param tablename: name of the table
+    :param meta: table metadata so they can be added but will not be created until called table.create()
+    :return: a sqlalchemy table with metadata (engine data) associated with it
+    """
     colnames = list(dict.keys())
-    coltypes = [str_to_type(dict[colname]["type"]) for colname in colnames]
+    coltypes = []
+    for col in colnames:
+        if dict[col]["type"] != "fk":
+            str_to_type(dict[col]["type"])
+        else:
+            str_to_type(dict[col]["type"], dict[col]["fk"]["table"], dict[col]["fk"]["column"])
     idxs = [dict[colname]["index"] for colname in colnames]
     pks = [True if "pk" in dict[colname].keys() else False for colname in colnames]
-
     table = Table(tablename, meta,
                   *(Column(colname, coltype, primary_key=pk, index=idx)
                     for colname, coltype, pk, idx in zip(colnames, coltypes, pks, idxs))
                   , extend_existing=True)
 
     return table
+
 
 def dict_to_engine(params, **kwargs):
     """
@@ -66,11 +94,11 @@ def dict_to_engine(params, **kwargs):
     :param kwargs: if type is not sqlite in this order username, password, host, port
     :return: a sqlalchemy engine
     """
-    if params["type"]=="sqlite":
-        dbstring="sqlite:///{}".format(params["name"])
+    if params["type"] == "sqlite":
+        dbstring = "sqlite:///{}".format(params["name"])
     else:
         raise NotImplementedError("currently only sqlite is supported")
-        #dbstring = "{}://{}:{}@{}:{}/{}".format(kwargs, params["name"])
+        # dbstring = "{}://{}:{}@{}:{}/{}".format(kwargs, params["name"])
 
-    engine=create_engine(dbstring)
+    engine = create_engine(dbstring)
     return engine

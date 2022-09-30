@@ -1,5 +1,3 @@
-#TODO rna variants tables
-
 from sqlalchemy import Column, ForeignKey, Integer, String, Float
 from clinpy.database.base_tables import ProjectBase
 

@@ -58,7 +58,7 @@ data:
         - rna_variants
         #- filtered_rna_variants
       vcf_config: vcf.yaml
-      min_junction_reads: 10
+      min_junction_reads: 10 #minimum # of unique reads mapping to a junctin will be deprecated for a more flexible structure
     snps:
       file: varitants.vsv # always a tsv, has sample_id and vcf file path no header
       columns:
