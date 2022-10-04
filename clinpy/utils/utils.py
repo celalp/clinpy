@@ -4,6 +4,7 @@ from sqlalchemy import create_engine, MetaData
 import operator as op
 
 
+
 def calc_overlap(int1, int2):
     """
     takes 2 tuples 0 is start 1 is end, assumes that they are in the same chromosome
@@ -103,8 +104,6 @@ def dict_to_engine(params, **kwargs):
     else:
         raise NotImplementedError("currently only sqlite is supported")
         # dbstring = "{}://{}:{}@{}:{}/{}".format(kwargs, params["name"])
-
     engine = create_engine(dbstring)
     return engine
-
 
