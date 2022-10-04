@@ -5,7 +5,6 @@ output:
   # if not sqlite will need an .env file with host, port user, password
   create: true # otherwise add to existing database needs to be provided
 
-#TODO update this with other metadadata
 sample_meta: # this way the user can have arbitrary columns, user_annot will be added as well that will be json type
   file: sample_meta.tsv # always a tsv
   columns: #allowed types, str, int, float, date, bool, json but will not check fields same is true for variant impacts, pandas will check if
@@ -58,7 +57,7 @@ data:
         - rna_variants
         #- filtered_rna_variants
       vcf_config: vcf.yaml
-      min_junction_reads: 10
+      min_junction_reads: 10 #minimum # of unique reads mapping to a junctin will be deprecated for a more flexible structure
     snps:
       file: varitants.vsv # always a tsv, has sample_id and vcf file path no header
       columns:

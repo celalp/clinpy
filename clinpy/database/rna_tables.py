@@ -1,8 +1,7 @@
-#TODO rna variants tables
 
 from sqlalchemy import Column, ForeignKey, Integer, String, Float
-from clinpy.database.base_tables import ProjectBase
 
+from clinpy.database.base_tables import ProjectBase
 
 
 class FilteredJunctions(ProjectBase):  # these are the junctions that pass the intense filtering described elsewhere
@@ -59,21 +58,22 @@ class TranscriptExpression(ProjectBase):
     fpkm = Column(Float)
     isopct = Column(Float)
 
+
 class RNAVariants(ProjectBase):
-    __tablename__="rna_variants"
-    variant_id=Column(Integer, primary_key=True, index=True)
-    chrom=Column(String, index=True)
-    pos=Column(Integer)
-    id=Column(String)
-    ref=Column(String)
-    alt=Column(String)
+    __tablename__ = "rna_variants"
+    variant_id = Column(Integer, primary_key=True, index=True)
+    chrom = Column(String, index=True)
+    pos = Column(Integer)
+    id = Column(String)
+    ref = Column(String)
+    alt = Column(String)
 
 
 class FilteredRNAVariants(ProjectBase):
-    __tablename__="filtered_rna_variants"
-    variant_id=Column(Integer, primary_key=True, index=True)
-    chrom=Column(String, index=True)
-    pos=Column(Integer)
-    id=Column(String)
-    ref=Column(String)
-    alt=Column(String)
+    __tablename__ = "filtered_rna_variants"
+    variant_id = Column(Integer, primary_key=True, index=True)
+    chrom = Column(String, index=True)
+    pos = Column(Integer)
+    id = Column(String)
+    ref = Column(String)
+    alt = Column(String)

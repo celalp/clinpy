@@ -13,7 +13,8 @@ setup(
                       "numpy",
                       "pysam",
                       "pytxdb @ git+https://github.com/celalp/pytxdb@master",
-                      "pyyaml"],
+                      "pyyaml",
+                      "sqlalchemy-filters"],
     zip_safe=False,
     include_package_data=True
 )

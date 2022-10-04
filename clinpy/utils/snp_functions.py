@@ -129,7 +129,6 @@ def parse_vcf(file, fields, formats, type_dict, field_name="CSQ", field_split="|
     return variants
 
 
-# TODO foreign key constraint on sample id and variant id
 def generate_variant_tables(vcf_params, fields, formats, meta, name_type=str, rna=False, filtered=False):
     """
 
