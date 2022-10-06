@@ -49,6 +49,7 @@ class Variants(Assay):
         """
         return list(self.mapping_table.columns.keys())
 
+    #TODO need a more memory efficient way to get this done
     def filter(self, impacts=None, formats=None):
         """
         filter unfiltered variants, the filters need to be a dict where the key is the field name and value is what you are searching for
@@ -77,8 +78,6 @@ class Variants(Assay):
         variants.columns=self.session.execute(query).keys()
 
         return variants
-
-
 
     def search_region(self, gr, samples=None):
         """
@@ -134,7 +133,7 @@ class Variant(Variants):
         self.alt=alt
         super().__init__(project, rna, filtered)
 
-
+    #TODO
     @property
     def counts(self, samples=None, cohort=None):
         ac_query=None

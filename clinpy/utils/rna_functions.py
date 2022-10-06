@@ -17,13 +17,13 @@ def import_expression(file, samplename, engine, gene=True):
     dat["samplename"] = samplename
     if gene:
         dat = dat.drop(columns=["length", "effective_length", "transcript_id(s)"])
-        dat.columns = ["samplename", "gene", "expected_count", "tpm", "fpkm"]
+        dat.columns = ["gene", "expected_count", "tpm", "fpkm", "samplename"]
         dat.to_sql("gene_expression", engine, if_exists="append", index=False)
     else:
         dat = pd.read_csv(file, header=0, sep="\t")
         dat["samplename"] = samplename
         dat = dat.drop(columns=["length", "effective_length", "gene_id"])
-        dat.columns = ["samplename", "transcript", "expected_count", "tpm", "fpkm", "isopct"]
+        dat.columns = ["transcript", "expected_count", "tpm", "fpkm", "isopct", "samplename"]
         dat.to_sql("transcript_expression", engine, if_exists="append", index=False)
 
 

@@ -4,7 +4,6 @@ from sqlalchemy import create_engine, MetaData
 import operator as op
 
 
-
 def calc_overlap(int1, int2):
     """
     takes 2 tuples 0 is start 1 is end, assumes that they are in the same chromosome
@@ -77,9 +76,9 @@ def dict_to_table(dict, tablename, meta):
     coltypes = []
     for col in colnames:
         if dict[col]["type"] != "fk":
-            str_to_type(dict[col]["type"])
+            coltypes.append(str_to_type(dict[col]["type"]))
         else:
-            str_to_type(dict[col]["type"], dict[col]["fk"]["table"], dict[col]["fk"]["column"])
+            coltypes.append(str_to_type(dict[col]["type"], dict[col]["fk"]["table"], dict[col]["fk"]["column"]))
     idxs = [dict[colname]["index"] for colname in colnames]
     pks = [True if "pk" in dict[colname].keys() else False for colname in colnames]
     table = Table(tablename, meta,

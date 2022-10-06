@@ -110,6 +110,7 @@ class Junctions(Assay):
 
         return results
 
+    #TODO
     def filter(self, junc_func, skip_existing=True, **kwargs):
         """
         take a function, fill it's arguments and apply to each sample junctions, if the sample is already

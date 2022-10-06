@@ -1,9 +1,8 @@
 import gc
 import os
-from functools import reduce
-
 import pandas as pd
 import pysam
+from functools import reduce
 from sqlalchemy import Table, select
 
 from clinpy.utils.utils import dict_to_table
@@ -48,6 +47,8 @@ def compare_fields(files, info_name="CSQ", not_same="error", info_sep="|"):
         fields = descriptions[0].split(info_sep)[1:]
         formats = formats[0]
 
+    fields = [field.lower() for field in fields]
+    formats = [format.lower() for format in formats]
     return fields, formats
 
 
@@ -91,8 +92,9 @@ def parse_vcf(file, fields, formats, type_dict, field_name="CSQ", field_split="|
     header = file.header
     info = header.info[field_name]
     split_fields = info.description.split(field_split)[1:]
-    split_fields = [field.lower() for field in split_fields]
-    fields = [field.lower() for field in fields]
+    split_fields = [field.lower() for field in
+                    split_fields]  # this is re-done in the vcf to compare with the union/intersection stuff
+
     variants = []
     for var in file:  # go over each variant
         var_details = {"chrom": var.chrom, "pos": var.pos, "id": var.id, "ref": var.ref, "alt": var.alts[0],
@@ -143,33 +145,39 @@ def generate_variant_tables(vcf_params, fields, formats, meta, name_type=str, rn
     """
     impacts = {}
     for field in fields:
-        field = field.lower()
         if field in vcf_params["variant_impacts"].keys():
             impacts[field] = vcf_params["variant_impacts"][field]
         else:
             continue
-    impacts["variant_id"] = {"type": "int", "index": True}
+
     impact_name = "variant_impacts"
     samples_name = "sample_variants"
+    variants_name="variants"
     if rna:
         impact_name = "rna_" + impact_name
         samples_name = "rna_" + samples_name
+        variants_name= "rna_" + variants_name
     if filtered:
         impact_name = "filtered_" + impact_name
         samples_name = "filtered_" + samples_name
+        variants_name = "filtered_" + variants_name
+
+    impacts["variant_id"] = {"type": "fk", "index": True,
+                             "fk": {"table": variants_name, "column": "variant_id"}}
 
     impacts_table = dict_to_table(impacts, impact_name, meta)
     impacts_table.create()
 
     sample_variants = {}
-    sample_variants["variant_id"] = {"type": "int", "index": True, "pk": True}
+    sample_variants["variant_id"] = {"type": "fk", "index": True, "pk": True,
+                                     "fk": {"table": variants_name, "column": "variant_id"}}
     sample_variants["samplename"] = {"type": name_type,
                                      "index": True, "pk": True}
     sample_variants["qual"] = {"type": "float", "index": False}
     sample_variants["filter"] = {"type": "str", "index": True}
 
     for format in formats:
-        if format == "GT":
+        if format == "gt":
             sample_variants[format] = {"type": "str", "index": True}
         else:
             sample_variants[format] = {"type": "str", "index": False}
@@ -205,9 +213,6 @@ def add_to_variant_tables(engine, meta, session, fields, formats, create=True, f
     :param rna is this from rnaseq data
     :return:
     """
-
-    fields = [field.lower() for field in fields]
-    formats = [format.lower() for format in formats]
 
     meta.reflect()
     table = "variants"
