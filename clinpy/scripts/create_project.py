@@ -1,4 +1,7 @@
+#TODO need to come up with a way to get the default python and see if compatible
+
 #! python3.9
+
 
 import argparse as arg
 from datetime import datetime
@@ -103,6 +106,8 @@ if __name__ == "__main__":
                     vcf_files = [file for file in files["rna_variants"].to_list() if not pd.isna(file)]
                     fields, formats = compare_fields(vcf_files, vcf_params["info"]["name"], vcf_params["not_same"],
                                                      vcf_params["info"]["sep"])
+                    project_meta.reflect()
+
                     generate_variant_tables(vcf_params, fields, formats, project_meta,
                                             params["sample_meta"]["columns"]["sample_id"]["type"], rna=True,
                                             filtered=False)
@@ -112,6 +117,8 @@ if __name__ == "__main__":
                     filt_fields, filt_formats = compare_fields(vcf_files, vcf_params["info"]["name"],
                                                                vcf_params["not_same"],
                                                                vcf_params["info"]["sep"])
+                    project_meta.reflect()
+
                     generate_variant_tables(vcf_params, filt_fields, filt_formats, project_meta,
                                             params["sample_meta"]["columns"]["sample_id"]["type"], rna=True,
                                             filtered=True)
@@ -185,23 +192,23 @@ if __name__ == "__main__":
             for column in columns:
                 if column=="unfiltered_junctions":
                     print("[" + datetime.now().strftime(
-                        "%Y/%m/%d %H:%M:%S") + "] " + "Normalizing unfiltered junction tables for " + str(sample))
+                        "%Y/%m/%d %H:%M:%S") + "] " + "Normalizing unfiltered junction tables")
                     add_to_junction_tables(engine, project_meta, session=session, create=params["output"]["create"],
                                            filtered=False)
                 elif column == "filtered_junctions":
                     print("[" + datetime.now().strftime(
-                        "%Y/%m/%d %H:%M:%S") + "] " + "Normalizing filtered junction tables for " + str(sample))
+                        "%Y/%m/%d %H:%M:%S") + "] " + "Normalizing filtered junction tables")
                     add_to_junction_tables(engine, project_meta, session=session, create=params["output"]["create"],
                                            filtered=True)
                 elif column == "rna_variants":
                     print("[" + datetime.now().strftime(
-                        "%Y/%m/%d %H:%M:%S") + "] " + "Normalizing rna variant tables for  " + str(sample))
+                        "%Y/%m/%d %H:%M:%S") + "] " + "Normalizing rna variant tables")
                     add_to_variant_tables(engine, project_meta, session, fields, formats,
                                           create=params["output"]["create"], filtered=False,
                                           rna=True)
                 elif column == "filtered_rna_variants":
                     print("[" + datetime.now().strftime(
-                        "%Y/%m/%d %H:%M:%S") + "] " + "Normalizing filtered rna variant tables for " + str(sample))
+                        "%Y/%m/%d %H:%M:%S") + "] " + "Normalizing filtered rna variant tables")
                     add_to_variant_tables(engine, project_meta, session, fields, formats,
                                           create=params["output"]["create"], filtered=True,
                                           rna=True)
@@ -236,7 +243,7 @@ if __name__ == "__main__":
                     generate_variant_tables(vcf_params, fields, formats, project_meta,
                                         params["sample_meta"]["columns"]["sample_id"]["type"], rna=False,
                                         filtered=False)
-                elif column == "filtered_rna_variants":
+                elif column == "filtered_variants":
                     FilteredVariants.__table__.create(engine)
                     vcf_files = [file for file in files["filtered_variants"].to_list() if not pd.isna(file)]
                     filt_fields, filt_formats = compare_fields(vcf_files, vcf_params["info"]["name"],
@@ -283,11 +290,11 @@ if __name__ == "__main__":
                                 type))
 
             for column in columns:
-                if column == "rna_variants":
+                if column == "variants":
                     add_to_variant_tables(engine, project_meta, session, fields, formats,
                                       create=params["output"]["create"], filtered=False,
                                       rna=False)
-                elif column == "filtered_rna_variants":
+                elif column == "filtered_variants":
                     add_to_variant_tables(engine, project_meta, session, fields, formats,
                                   create=params["output"]["create"], filtered=True,
                                   rna=False)

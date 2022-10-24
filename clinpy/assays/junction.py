@@ -9,7 +9,7 @@ from functools import partial
 
 class Junctions(Assay):
     def __init__(self, db, genome):
-        super.__init__(db, genome)
+        super().__init__(db, genome)
 
     def select(self, cohort=None, uniq=False, samples=None, df=True, filtered=True):
         """

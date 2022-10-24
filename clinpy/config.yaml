@@ -6,7 +6,7 @@ output:
   create: true # otherwise add to existing database needs to be provided
 
 sample_meta: # this way the user can have arbitrary columns, user_annot will be added as well that will be json type
-  file: sample_meta.tsv # always a tsv
+  file: sample_meta.csv # always a tsv
   columns: #allowed types, str, int, float, date, bool, json but will not check fields same is true for variant impacts, pandas will check if
     # all the columns names match
     sample_id:

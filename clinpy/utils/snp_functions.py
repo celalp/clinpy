@@ -101,7 +101,7 @@ def parse_vcf(file, fields, formats, type_dict, field_name="CSQ", field_split="|
                        "qual": var.qual, "filter": var.filter.keys()[0]}  # these are mandatory vcf fields
 
         for item in var.samples[0].keys():  # assuming one sample per vcf, otherwise will get the first one not ideal
-            if item in formats:
+            if item.lower() in formats:
                 var_details[item.lower()] = str(var.samples[0][item])
 
         consequences = []  # there will be a separate consequence for each transcript

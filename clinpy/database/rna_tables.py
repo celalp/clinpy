@@ -24,7 +24,7 @@ class AllJunctions(ProjectBase):  # these are junctions that pass some basic QC 
 
 # many to many relationships
 class SampleToJunction(ProjectBase):
-    __tablename__ = "sample_to_junction"
+    __tablename__ = "sample_to_junctions"
     samplename = Column(ForeignKey("samples.sample_id"), primary_key=True, index=True)
     junction = Column(ForeignKey("junctions.id"), primary_key=True, index=True)
     uniq_map = Column(Integer)
@@ -32,7 +32,7 @@ class SampleToJunction(ProjectBase):
 
 
 class SampleToAllJunction(ProjectBase):
-    __tablename__ = "sample_to_alljunction"
+    __tablename__ = "sample_to_alljunctions"
     samplename = Column(ForeignKey("samples.sample_id"), primary_key=True, index=True)
     junction = Column(ForeignKey("all_junctions.id"), primary_key=True, index=True)
     uniq_map = Column(Integer)

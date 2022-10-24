@@ -9,9 +9,11 @@ class Expression(Assay):
     or long format expression table
     """
     def __init__(self, db, genome):
-        super.__init__(db, genome)
+        super().__init__(db)
         gene_table=Table("gene_expression", self.metadata, autoload=True, autoload_with=self.db)
         transcript_table=Table("transcript_expression", self.metadata, autoload=True, autoload_with=self.db)
+        self.gene_table=gene_table
+        self.transcript_table=transcript_table
 
 
     def get_expression(self, cohort=None, samples=None, gene=True, names=None, long=True, what=None):
@@ -38,7 +40,7 @@ class Expression(Assay):
 
             samples = select(self.sample_table.c.study_id).where(self.sample_table.c.cohort).in_(cohort). \
                 scalar_subquery()
-            query = query.where(table.samplename.in_(samples))
+            query = query.where(table.c.samplename.in_(samples))
 
         if samples is not None:
             query = query.where(table.c.samplename.in_(samples))

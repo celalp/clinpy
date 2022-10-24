@@ -5,7 +5,7 @@ from clinpy.assays.assay_base import Assay
 
 class Project(Assay):
     def __init__(self, db, genome, assays):
-        super.__init__(db, genome)
+        super().__init__(db, genome)
         #TODO add assays
 
 

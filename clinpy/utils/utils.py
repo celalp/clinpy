@@ -1,7 +1,7 @@
 from sqlalchemy import Table, Column, Integer, String, Float, Date, Boolean, JSON, ForeignKey
 from sqlalchemy import or_, and_, not_, select
 from sqlalchemy import create_engine, MetaData
-import operator as op
+import sqlalchemy.sql.operators as ops
 
 
 def calc_overlap(int1, int2):
@@ -106,3 +106,40 @@ def dict_to_engine(params, **kwargs):
     engine = create_engine(dbstring)
     return engine
 
+def str_to_op(st):
+    if st=="==":
+        op=ops.eq
+    elif st == ">":
+        op=ops.gt
+    elif st == ">=":
+        op=ops.ge
+    elif st == "<":
+        op=ops.lt
+    elif st == "<=":
+        op=ops.le
+    elif st == "!=":
+        op=ops.ne
+    elif st == "like":
+        op=ops.like_op
+    elif st == "ilike":
+        op=ops.ilike_op
+    elif st == "in":
+        op=ops.in_op
+    elif st == "not_in":
+        op=ops.not_in_op
+    else:
+        raise NotImplementedError("{} is not an available comparison".format(st))
+    return op
+
+def single_filter(tup, meta):
+    """
+
+    """
+    table=meta.tables[tup[0]]
+    col=table.c[tup[1]]
+    op=str_to_op(tup[2])
+    filter=op(col, tup[3])
+    return filter
+
+def compound_filter(dct, meta):
+    pass

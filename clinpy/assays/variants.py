@@ -1,7 +1,6 @@
 import pandas as pd
 from sqlalchemy import Table, select, and_, func, distinct
 from clinpy.assays.assay_base import Assay
-from sqlalchemy_filters import apply_filters
 from clinpy.utils.snp_functions import add_to_variant_tables
 
 class Variants(Assay):
@@ -15,7 +14,7 @@ class Variants(Assay):
         :param rna: are you referring to RNA-Seq variants
         :param filtered: are referring to filtered variants
         """
-        super.__init__(db)
+        super().__init__(db)
         table = "variants"
         mapping = "sample_variants"
         impacts = "variant_impacts"
@@ -67,10 +66,10 @@ class Variants(Assay):
             raise ValueError("Both impacts and formats are none, there are no filters specified")
 
         if impacts is not None:
-            query=apply_filters(query, impacts)
+           pass
 
         if formats is not None:
-            query=apply_filters(query, formats)
+            pass
 
         # if too many variants are there this might fail but not sure how many is too many
         variants=self.session.execute(query).fetchall()
@@ -133,33 +132,72 @@ class Variant(Variants):
         self.alt=alt
         super().__init__(project, rna, filtered)
 
-    #TODO
-    @property
-    def counts(self, samples=None, cohort=None):
-        ac_query=None
-        af_query=None
-        num_hets=None
-        num_homs=None
-        pass
 
-    @property
-    def samples(self, cohort=None, genotype="both"):
-        query=select(self.mapping_table).filter(self.mapping_table.c.variant_id==self.id)
-        results = self.session.execute(query).fetchall()
-        results = pd.DataFrame(results)
-        results.columns = self.session.execute(query).keys()
+    def counts(self, samples=None, cohorts=None):
+        """
+        return allele counts, number of homs and hets
+        :param samples only search witihn these samples list (even if only one sample)
+        :param cohorts only search these cohorts list (even if only one cohort)
+        : return a tuple of # hets, # homs, ac and af based on either the entire project or samples provided or samples in
+        specified cohorts
+        """
 
-        if genotype=="both":
-            return results
+        num_hets=select(func.count(self.mapping_table)).filter(and_(self.mapping_table.c.variant_id==self.id,
+                                                        self.mapping_table.c.gt=="(0, 1)"))
+
+        num_homs = select(func.count(self.mapping_table)).filter(and_(self.mapping_table.c.variant_id == self.id,
+                                                                      self.mapping_table.c.gt == "(1, 1)"))
+
+        total_samples=select(func.count(self.sample_table.c.sample_id))
+
+        if samples is not None:
+            num_hets=num_hets.filter(self.mapping_table.c.samplename.in_(samples))
+            num_homs = num_homs.filter(self.mapping_table.c.samplename.in_(samples))
+            total_samples=len(samples)
+
+        if cohorts is not None:
+            cohort_samples=select(self.sample_table.c.sample_id).filter(self.sample_table.c.cohort.in_(cohorts))
+            total_samples=len(self.session.execute(cohort_samples))
+            num_hets=num_hets.fitler(self.mapping_table.c.samplename.in_(cohort_samples))
+            num_homs = num_homs.fitler(self.mapping_table.c.samplename.in_(cohort_samples))
+
+        num_hets = self.session.execute(num_hets).fetchone()[0]
+        num_homs = self.session.execute(num_homs).fetchone()[0]
+
+        ac = num_hets+num_homs*2
+        af = ac/total_samples
+
+        return (num_hets, num_homs, ac, af)
+
+    def samples(self, cohorts=None, genotype="both"):
+        """
+        return samples containing the exact variant
+        :param cohorts: search these cohorts
+        :param genotype: return everything, het or hom
+        returns a list of sample ids
+        """
+        query=select(self.mapping_table.c.samplename).filter(self.mapping_table.c.variant_id==self.id)
+
+
+        if genotype=="het":
+            query=query.filter(self.mapping_table.c.gt=="(0, 1)")
         elif genotype=="hom":
-            results=results[results["GT"]=="(1, 1)"]
-            return results
-        elif genotype=="het":
-            results = results[results["GT"] == "(0, 1)"]
-            return results
+            query=query.filter(self.mapping_table.c.gt=="(1, 1)")
+        else:
+            raise ValueError("genotype can only be hom or het")
+
+        if cohorts is not None:
+            cohort_samples = select(self.sample_table.c.sample_id).filter(self.sample_table.c.cohort.in_(cohorts))
+            query=query.filter(self.mapping_table.c.samplename.in_(cohort_samples))
 
 
-    @property
+        results = self.session.execute(query).fetchall()
+
+        samples=[result[0] for result in results]
+
+        return samples
+
+
     def impact(self):
         query=select(self.impacts_table).filter(self.impacts_table.c.variant_id==self.id)
         results=self.session.execute(query).fetchall()

@@ -9,9 +9,9 @@ class Assay:
 
     def __init__(self, db, genome=None):
         self.db = db
-        self.session = Session(self.project)
-        self.metadata = MetaData(self.project)
-        self.metadata.reflect(bind=self.project)
+        self.session = Session(self.db)
+        self.metadata = MetaData(self.db)
+        self.metadata.reflect(bind=self.db)
 
         self.sample_table = Table("samples", self.metadata, autoload=True, autoload_with=self.db)
         if genome is not None:

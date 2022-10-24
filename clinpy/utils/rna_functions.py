@@ -57,7 +57,6 @@ def add_to_junction_tables(engine, meta, session, create=True, filtered=True):
         temp = "temp_all_junc"
         junc_temp = Table("temp_all_junc", meta, autoload=True, autoload_with=engine)
         junc_table = Table("all_junctions", meta, autoload=True, autoload_with=engine)
-        samp_to_junc = Table("sample_to_alljunction", meta, autoload=True, autoload_with=engine)
 
 
     if create:
