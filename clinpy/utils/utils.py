@@ -1,29 +1,7 @@
-from sqlalchemy import Table, Column, Integer, String, Float, Date, Boolean, JSON, ForeignKey
-from sqlalchemy import or_, and_, not_, select
-from sqlalchemy import create_engine, MetaData
-import sqlalchemy.sql.operators as ops
-
-
-def calc_overlap(int1, int2):
-    """
-    takes 2 tuples 0 is start 1 is end, assumes that they are in the same chromosome
-    :param int1: interval 1
-    :param int2: interval 2
-    :return:
-    """
-    len1 = int1[1] - int1[0]
-    len2 = int2[1] - int2[0]
-    if int2[0] > int1[1] or int1[0] > int2[1]:
-        return 0
-    elif int2[0] <= int1[0] and int2[1] >= int1[1]:  # complete coverage
-        return 1
-    elif int2[0] >= int1[0] and int2[1] <= int1[1]:  # 1 covers 2
-        return len2 / len1
-    elif int2[0] >= int1[0] and int2[1] > int1[1]:  # 3' overlap
-        return (int1[1] - int2[0]) / len1
-    elif int2[0] <= int1[0] and int2[1] < int1[1]:  # 5' overlap
-        return (int2[1] - int1[0]) / len1
-
+from sqlalchemy import Table, Column, Integer, String, \
+    Float, Date, Boolean, JSON, ForeignKey, BLOB, select
+from sqlalchemy import create_engine
+from functools import partial
 
 def str_to_type(st, *args):
     """
@@ -46,6 +24,8 @@ def str_to_type(st, *args):
         coltype = Boolean
     elif st == "json":
         coltype = JSON
+    elif st == "blob":
+        coltype = BLOB
     elif st == "fk":
         coltype = ForeignKey("{}.{}".format(args[0], args[1]))
     else:
@@ -62,7 +42,7 @@ def dict_to_table(dict, tablename, meta):
         pk: true
         fk:
             table:table for the foreign key
-            colname: column name for the foreignkey
+            column: column name for the foreignkey
     }
 
     all error checks (like if the table exists etc) are done by sqlalchemy
@@ -88,58 +68,34 @@ def dict_to_table(dict, tablename, meta):
 
     return table
 
-
-def dict_to_engine(params, **kwargs):
-    #TODO support postgres, mariadb and mysql
-    # means adding an .env file to the create_project.py
+def dict_to_engine(dbtype, name, username=None, pwd=None, host=None, port=None):
     """
     create a database connection based on the yaml description
-    :param dict: the output section of the config yaml
-    :param kwargs: if type is not sqlite in this order username, password, host, port
+    :param params: the output section of the config.py
+    :param username of the database (not used in sqlite)
+    :param pwd: the password for the user (not used in sqlite)
+    :param host: the ip or url of the host (not used in sqlite)
+    :param port: the port of the database in the host (not used in sqlite)
     :return: a sqlalchemy engine
     """
-    if params["type"] == "sqlite":
-        dbstring = "sqlite:///{}".format(params["name"])
+    if dbtype == "sqlite":
+        dbstring = "sqlite:///{}".format(name)
+    elif dbtype == "postgresql":
+        dbstring = "postgresql://{}:{}@{}:{}/{}".format(username, pwd, host, port, name)
+    elif dbtype == "mariadb":
+        dbstring = "mariadb+mariadbconnector:://{}:{}@{}:{}/{}".format(username,pwd, host, port, name)
+    elif dbtype == "mysql":
+        dbstring = "mysql+mysqlconnector://{}:{}@{}:{}/{}".format(username, pwd, host, port, name)
     else:
-        raise NotImplementedError("currently only sqlite is supported")
-        # dbstring = "{}://{}:{}@{}:{}/{}".format(kwargs, params["name"])
+        raise NotImplementedError("There is no current support for {}".format(dbtype))
     engine = create_engine(dbstring)
     return engine
 
-def str_to_op(st):
-    if st=="==":
-        op=ops.eq
-    elif st == ">":
-        op=ops.gt
-    elif st == ">=":
-        op=ops.ge
-    elif st == "<":
-        op=ops.lt
-    elif st == "<=":
-        op=ops.le
-    elif st == "!=":
-        op=ops.ne
-    elif st == "like":
-        op=ops.like_op
-    elif st == "ilike":
-        op=ops.ilike_op
-    elif st == "in":
-        op=ops.in_op
-    elif st == "not_in":
-        op=ops.not_in_op
-    else:
-        raise NotImplementedError("{} is not an available comparison".format(st))
-    return op
 
-def single_filter(tup, meta):
+#TODO test
+def prep_read_fun(fun, **kwargs):
     """
-
     """
-    table=meta.tables[tup[0]]
-    col=table.c[tup[1]]
-    op=str_to_op(tup[2])
-    filter=op(col, tup[3])
-    return filter
+    read_fun=partial(fun, kwargs)
+    return read_fun
 
-def compound_filter(dct, meta):
-    pass

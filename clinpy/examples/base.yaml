@@ -1,0 +1,80 @@
+# this is an example of a config file for the base assay which basically keeps track of samples and subjects
+# there are some reserved key_value pairs while some of them optional they are reserved. See the documentation for more
+# details
+
+assay_name: base
+filename: base_assay_tables.xlsx
+read_fun_params: {} # this is what an empty dict looks like in a yaml
+
+tables:
+# these are some examples about how to set up assays, this will include the base assay where we keep cohort/sample
+# subject metadata this can be as granular as you wish you just need to keep in mind how the tables are related
+  cohorts:
+    cohort_id:
+      type: str
+      index: true
+      pk: true
+    description:
+      type: str
+      index: False
+
+  subjects:
+    subject_id:
+      type: str
+      index: true
+      pk: true
+    tm_id:
+      type: str
+      index: false
+    dx:
+      type: str
+      index: False
+    sex:
+      type: str
+      index: False
+    age:
+      type: float
+      index: False
+    type_of_surgery:
+      type: str
+      index: false
+
+  samples: # here I'm assuming more than one sample can come from a subject but not the other way around
+    sample_id:
+      type: str
+      pk: True
+      index: True
+    subject_id:
+      type: fk
+      fk:
+        table: subjects
+        column: subject_id
+      pk: true
+      index: true
+    tissue:
+      type: str
+      index: false
+    batch:
+      type: str
+      index: false
+    platform:
+      type: str
+      index: false
+
+  subjects_and_cohorts: #this is a linker sample since on subject can belong to more than one cohort
+    subject_id:
+      type: fk
+      fk:
+        table: subjects
+        column: subject_id
+      pk: true
+      index: true
+    cohort_id:
+      type: fk
+      fk:
+        table: cohorts
+        column: cohort_id
+      pk: True
+      index: True
+
+  # if desired you can add further granularity like keeping track of aliuqots of a sample or library prep info and so on

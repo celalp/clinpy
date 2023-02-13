@@ -11,18 +11,13 @@ import yaml
 from sqlalchemy import MetaData
 from sqlalchemy.orm import Session
 
-from clinpy.database.rna_tables import *
-from clinpy.database.snp_tables import *
-from clinpy.utils.rna_functions import *
-from clinpy.utils.snp_functions import *
-from clinpy.utils.utils import dict_to_engine
 
 
 if __name__ == "__main__":
     parser = arg.ArgumentParser(description='add to a project database with genome annotations junctions'
                                             'and expression data')
-    parser.add_argument('-y', '--yaml', help="config.yaml file see readme for details", type=str, action="store",
-                        default="config.yaml")
+    parser.add_argument('-y', '--yaml', help="config.py file see readme for details", type=str, action="store",
+                        default="config.py")
     args = parser.parse_args()
 
     if args.yaml is None:

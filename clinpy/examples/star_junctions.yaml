@@ -1,0 +1,101 @@
+# this one contains some supplementary tables that are used by the methods, there is really no defined structure other
+# than some reserved key:value to initiate the assay class, based on your methods your structure can be as complicated as you wish
+
+assay_name: star_junctions
+filename: junctions.csv
+
+# this one is for metadata, basically samplename and file location
+meta_read_fun_params:
+  header: 0
+  sep: "\t"
+  low_memory: false
+
+
+# this one is for reading the actual data
+read_fun_params:
+  header: null
+  sep: "\t"
+  low_memory: false
+
+
+min_junc_reads: 10
+
+# assay specific parameters
+temp_table: temp_junctions
+junction_col: junctions
+sample_col: samplename
+
+tables:
+  junctions:
+    id:
+      type: int
+      pk: true,
+      index: true
+    chrom:
+      type: str
+      index: true
+    start:
+      type: int
+      index: true
+    end:
+      type: int
+      index: true
+    strand:
+      type: str
+      index: true
+    annotated:
+      type: bool
+      index: true
+
+  sample_to_junctions: # one junction can be in more than one sample no need to duplicate data
+    samplename:
+      type: fk
+      fk:
+        table: samples
+        column: sample_id
+      pk: true
+      index: true
+    junction:
+      type: fk
+      fk:
+        table: junctions
+        column: id
+      index: true
+      pk: true
+    uniq_map:
+      type: int
+      index: false
+    multi_map:
+      type: int
+      index: false
+
+  junction_filters:
+    id:
+      type: int
+      pk: true
+      index: true
+    name:
+      type: str
+      index: false
+    filter:
+      type: blob
+      index: false
+    params:
+      type: json
+      index: false
+
+  filtered_junctions:
+    junction:
+      type: fk
+      fk:
+        table: junctions
+        column: id
+      pk: true
+      index: true
+    filter_id:
+      type: fk
+      fk:
+        table: junction_filters
+        column: id
+      index: true
+      pk: true

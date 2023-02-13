@@ -1,0 +1,338 @@
+# we can use the same structure of the config and use it for multiple samples so in this db there will be 2
+# variant classes with subtle differences but we can use a very similar config and edit just a few things
+
+assay_name: wgs_variants
+
+filename: wgs_variants.csv
+
+# this one is for metadata, basically samplename and file location
+meta_read_fun_params:
+  header: 0
+  sep: \t
+  sample_col: sample_id # this provides the mapping to base, so they need to match to what you are tracking
+
+# there is no read_fun since I have a parser in the import_data.py
+read_fun_params: null
+
+
+tables:
+  wgs_variants:
+    id:
+      type: int
+      index: true
+      pk: true
+    chrom:
+      type: str
+      index: true
+    pos:
+      type: int
+      index: true
+    ref:
+      type: str
+      index: true
+    alt:
+      type: str
+      index: true
+
+# one downside of this is hat it requires that you know what format
+# fields you have in your vcfs, but you need to do that only once
+  wgs_sample_variants:
+    variant_id:
+      type: fk
+      fk:
+        table: variants
+        column: id
+      index: true
+      pk: true
+    samplename:
+      type: fk
+      fk:
+        table: samples
+        column: sample_id
+      index: true
+    ad:
+      type: str
+      index: false
+    dp:
+      type: str
+      index: false
+    gq:
+      type: str
+      index: false
+    gt:
+      type: str
+      index: false
+    gqx:
+      type: str
+      index: false
+    dpf:
+      type: str
+      index: false
+    dpi:
+      type: str
+      index: false
+
+  wgs_variant_impacts:
+    impact_id:
+      type: int
+      pk: true
+      index: true
+    variant_id:
+      type: fk
+      fk:
+        table: wgs_variants
+        column: id
+      index: true
+    consequence:
+      type: str
+      index: true
+    impact:
+      type: str
+      index: true
+    symbol:
+      type: str
+      index: true
+    gene:
+      type: str
+      index: true
+    feature_type:
+      type: str
+      index: true
+    feature:
+      type: str
+      index: true
+    biotype:
+      type: str
+      index: true
+    exon:
+      type: str
+      index: false
+    intron:
+      type: str
+      index: false
+    hgvsc:
+      type: str
+      index: false
+    hgvsp:
+      type: str
+      index: false
+    cdna_position:
+      type: str
+      index: false
+    cds_position:
+      type: str
+      index: false
+    protein_position:
+      type: str
+      index: false
+    amino_acids:
+      type: str
+      index: false
+    codons:
+      type: str
+      index: false
+    existing_variation:
+      type: str
+      index: false
+    distance:
+      type: int
+      index: false
+    strand:
+      type: str
+      index: false
+    flags:
+      type: str
+      index: false
+    variant_class:
+      type: str
+      index: true
+    symbol_source:
+      type: str
+      index: false
+    hgnc_id:
+      type: str
+      index: false
+    canonical:
+      type: bool
+      index: false
+    mane:
+      type: str
+      index: false
+    tsl:
+      type: str
+      index: false
+    appris:
+      type: str
+      index: false
+    ccds:
+      type: str
+      index: false
+    ensp:
+      type: str
+      index: false
+    swissprot:
+      type: str
+      index: false
+    trembl:
+      type: str
+      index: false
+    uniparc:
+      type: str
+      index: false
+    gene_pheno:
+      type: str
+      index: false
+    sift:
+      type: str
+      index: false
+    polyphen:
+      type: str
+      index: false
+    domains:
+      type: str
+      index: false
+    mirna:
+      type: str
+      index: false
+    hgvs_offset:
+      type: str
+      index: false
+    af:
+      type: float
+      index: true
+    afr_af:
+      type: float
+      index: false
+    amr_af:
+      type: float
+      index: false
+    eas_af:
+      type: float
+      index: false
+    eur_af:
+      type: float
+      index: false
+    sas_af:
+      type: float
+      index: false
+    aa_af:
+      type: float
+      index: false
+    ea_af:
+      type: float
+      index: false
+    exac_af:
+      type: float
+      index: true
+    exac_adj_af:
+      type: float
+      index: false
+    exac_afr_af:
+      type: float
+      index: false
+    exac_amr_af:
+      type: float
+      index: false
+    exac_eas_af:
+      type: float
+      index: false
+    exac_fin_af:
+      type: float
+      index: false
+    exac_nfe_af:
+      type: float
+      index: false
+    exac_oth_af:
+      type: float
+      index: false
+    exac_sas_af:
+      type: float
+      index: false
+    gnomad_af:
+      type: float
+      index: true
+    gnomad_afr_af:
+      type: float
+      index: false
+    gnomad_amr_af:
+      type: float
+      index: false
+    gnomad_asj_af:
+      type: float
+      index: false
+    gnomad_eas_af:
+      type: float
+      index: false
+    gnomad_fin_af:
+      type: float
+      index: false
+    gnomad_nfe_af:
+      type: float
+      index: false
+    gnomad_oth_af:
+      type: float
+      index: false
+    gnomad_sas_af:
+      type: float
+      index: false
+    max_af:
+      type: float
+      index: false
+    max_af_pops:
+      type: str
+      index: false
+    clin_sig:
+      type: str
+      index: false
+    somatic:
+      type: str
+      index: false
+    pheno:
+      type: str
+      index: false
+    pubmed:
+      type: str
+      index: false
+    motif_name:
+      type: str
+      index: false
+    motif_pos:
+      type: str
+      index: false
+    high_inf_pos:
+      type: str
+      index: false
+    motif_score_change:
+      type: str
+      index: false
+
+  wgs_variant_filters:
+    id:
+      type: int
+      pk: true
+      index: true
+    name:
+      type: str
+      index: false
+    filter:
+      type: json
+      index: false
+
+  wgs_filtered_variants:
+    variant_id:
+      type: fk
+      fk:
+        table: wgs_variants
+        column: id
+      pk: true
+      index: true
+    filter_id:
+      type: fk
+      fk:
+        table: wgs_variant_filters
+        column: id
+      pk: true
+      index: true
+    filter:
+      type: json
+      index: false

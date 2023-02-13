@@ -1,0 +1,1 @@
+from clinpy.assays.assay import Assay

@@ -1,5 +1,3 @@
-
-
 info:
   name: CSQ #name of the impact field this is what ensembl uses
   sep: "|"
@@ -48,22 +46,22 @@ variant_impacts:
   cdna_position:
     type: str
     index: false
-  cds_position: 
+  cds_position:
     type: str
     index: false
-  protein_position: 
+  protein_position:
     type: str
     index: false
   amino_acids:
     type: str
     index: false
-  codons: 
+  codons:
     type: str
-    index: false    
-  existing_variation: 
+    index: false
+  existing_variation:
      type: str
      index: false
-  distance: 
+  distance:
      type: int
      index: false
   strand:

@@ -4,11 +4,36 @@ import pandas as pd
 import pysam
 from functools import reduce
 from sqlalchemy import Table, select
+import yaml
+from pysam import VariantFile
 
 from clinpy.utils.utils import dict_to_table
 
+# genotypes
+genotypes={"(1, 1)": ("ALT", "ALT"),
+           "(0, 1)": ("REF", "ALT"),
+           "(1, 0)": ("ALT", "REF"),
+           "(None, 1)": ("UNK", "ALT"),
+           "(1, None)": ("ALT", "UNK"),
+           "(None, None)": ("UNK", "UNK"),
+           "(1)": ("ALT", "DEL")}
 
-def compare_fields(files, info_name="CSQ", not_same="error", info_sep="|"):
+
+def parse_genotype(var, genotypes):
+    """
+    change the gt field so that there is a better way of displaying the data, I will include the dict here
+    since I don't really see any other possible combinations of genotypes for snps
+    """
+    gt=genotypes[str(var["GT"])]
+    if var.phased:
+        sep="|"
+    else:
+        sep="/"
+    gt = "{}{}{}".format(gt[0], sep, gt[1])
+    return gt
+
+
+def compare_fields(files, info_name="CSQ",  info_sep="|", not_same="error"):
     """
     gets a list of vcf file paths and compares the descriptions of consequence info, if they are not all the same
     either throws an error, gets their union, or their intersection
@@ -51,7 +76,9 @@ def compare_fields(files, info_name="CSQ", not_same="error", info_sep="|"):
     formats = [format.lower() for format in formats]
     return fields, formats
 
-
+# TODO there is an issue with some of the indel where VEP outputs 2 or more annotations in the frequency
+# columns which then messes up type coersion i'm not sure if this is an issuel with mital vcfs or a general
+# thing with VEP need to as nour/madeline this
 def coerce(effects, type_dict):
     """
     take a description from config dict and convert them to appropriatie types
@@ -64,6 +91,7 @@ def coerce(effects, type_dict):
         if key not in type_dict.keys():
             continue
         else:
+
             if effects[key] == '':
                 new_var[key] = None  # type independent
             else:
@@ -77,8 +105,10 @@ def coerce(effects, type_dict):
                     new_var[key] = float(effects[key])
     return new_var
 
+# TODO properly identify genotype and phasing assume gt fields are reserved and throw and error if gt is not there
+# TODO multisample vcf
 
-def parse_vcf(file, fields, formats, type_dict, field_name="CSQ", field_split="|", ignore=True):
+def parse_vcf(file, fields, formats, type_dict, info_name="CSQ", info_sep="|", ignore=True, genotypes=genotypes):
     """
     get the consequences of variants based on the field name
     :param file: vcf file connection via pysam
@@ -89,9 +119,11 @@ def parse_vcf(file, fields, formats, type_dict, field_name="CSQ", field_split="|
     :param field_split: split char of the specifiic info
     :return: a dataframe this is to be inserted as a temp table and then further processed like junctions
     """
+    if genotypes is None:
+        genotypes = genotypes
     header = file.header
-    info = header.info[field_name]
-    split_fields = info.description.split(field_split)[1:]
+    info = header.info[info_name]
+    split_fields = info.description.split(info_sep)[1:]
     split_fields = [field.lower() for field in
                     split_fields]  # this is re-done in the vcf to compare with the union/intersection stuff
 
@@ -101,19 +133,24 @@ def parse_vcf(file, fields, formats, type_dict, field_name="CSQ", field_split="|
                        "qual": var.qual, "filter": var.filter.keys()[0]}  # these are mandatory vcf fields
 
         for item in var.samples[0].keys():  # assuming one sample per vcf, otherwise will get the first one not ideal
-            if item.lower() in formats:
+            if item=="GT":
+                gt=parse_genotype(var.samples[0], genotypes)
+                var_details["gt"]=gt
+                #var_details[item.lower()] = str(var.samples[0][item])
+            elif item.lower() in formats:
                 var_details[item.lower()] = str(var.samples[0][item])
+            else:
+                continue
 
         consequences = []  # there will be a separate consequence for each transcript
-        consqs = var.info[field_name]
-        consqs = [cons.split(field_split)[1:] for cons in
+        consqs = var.info[info_name]
+        consqs = [cons.split(info_sep)[1:] for cons in
                   consqs]  # because we are removing the first one above this is vep specific not ideal
         for impact in consqs:  # go over each impact
             consequence = {}
             for i in range(len(split_fields)):
                 if split_fields[i] in fields:
-                    consequence[split_fields[i]] = impact[
-                        i]  # having a hard time with variable names TODO refactor for better namin
+                    consequence[split_fields[i]] = impact[i]  # TODO refactor for better naming
                 else:
                     if ignore:
                         continue
@@ -131,135 +168,51 @@ def parse_vcf(file, fields, formats, type_dict, field_name="CSQ", field_split="|
     return variants
 
 
-def generate_variant_tables(vcf_params, fields, formats, meta, name_type=str, rna=False, filtered=False):
-    """
+def create_tables(params, project, create=True):
+    tables = []
+    for tablename in params.keys():
+        tab=dict_to_table(params[tablename], tablename, project.metadata)
+        id_cols = [str(col.name) for col in tab._columns if col.primary_key is True]
+        tables.append([tablename, tab, id_cols])
+        if create:
+            tab.create()
 
-    :param vcf_params: vcf yaml containing all the information about the vcf file
-    :param fields: output from compare fields
-    :param formats: ouptut from compare fiields
-    :param meta: sqlachemy metadata for the project db
-    :param name_type: name type of the sample id (usually str or int)
-    :param rna: are these variants from RNA-Seq
-    :param filtered: are these filtered variants
-    :return: nothing creates the necessary tables in the project database and quits
-    """
-    impacts = {}
-    for field in fields:
-        if field in vcf_params["variant_impacts"].keys():
-            impacts[field] = vcf_params["variant_impacts"][field]
-        else:
-            continue
-
-    impact_name = "variant_impacts"
-    samples_name = "sample_variants"
-    variants_name="variants"
-    if rna:
-        impact_name = "rna_" + impact_name
-        samples_name = "rna_" + samples_name
-        variants_name= "rna_" + variants_name
-    if filtered:
-        impact_name = "filtered_" + impact_name
-        samples_name = "filtered_" + samples_name
-        variants_name = "filtered_" + variants_name
-
-    impacts["variant_id"] = {"type": "fk", "index": True,
-                             "fk": {"table": variants_name, "column": "variant_id"}}
-
-    impacts_table = dict_to_table(impacts, impact_name, meta)
-    impacts_table.create()
-
-    sample_variants = {}
-    sample_variants["variant_id"] = {"type": "fk", "index": True, "pk": True,
-                                     "fk": {"table": variants_name, "column": "variant_id"}}
-    sample_variants["samplename"] = {"type": name_type,
-                                     "index": True, "pk": True}
-    sample_variants["qual"] = {"type": "float", "index": False}
-    sample_variants["filter"] = {"type": "str", "index": True}
-
-    for format in formats:
-        if format == "gt":
-            sample_variants[format] = {"type": "str", "index": True}
-        else:
-            sample_variants[format] = {"type": "str", "index": False}
-
-    sample_variants_table = dict_to_table(sample_variants, samples_name, meta)
-    sample_variants_table.create()
+    return tables
 
 
-def import_temp_variants(variants, samplename, engine, filtered=False):
-    """
-    insert into a temp table to further process the variants table
-    :param variants: dataframe of variants, output of parse_vcf
-    :param samplename: name of the sample
-    :param engine sqlalchemy connection
-    :param filtered are these filtered variants
-    :return:
-    """
-    variants["samplename"] = samplename
-    if filtered:
-        variants.to_sql("temp_filt_variants", engine, if_exists="append", index=False)
-    else:
-        variants.to_sql("temp_all_variants", engine, if_exists="append", index=False)
-
-
-def add_to_variant_tables(engine, meta, session, fields, formats, create=True, filtered=False, rna=False):
+def add_to_variant_tables(project, fields, formats, impacts_table, mapping_table, variants_table, temp_table):
     """
     process the temp variants table and then remove it
     :param engine: slqalchemy connection
     :param meta: project db metadade
     :param session: session object
     :param create: is this a new project or added to an existing one
-    :param filtered: are these filtered variants?
-    :param rna is this from rnaseq data
     :return:
     """
+    project.metadata.reflect()
+    table = variants_table
+    mapping = mapping_table
+    impacts = impacts_table
 
-    meta.reflect()
-    table = "variants"
-    mapping = "sample_variants"
-    impacts = "variant_impacts"
+    temp_table = Table(temp_table, project.metadata, autoload=True, autoload_with=project.db)
+    variants_table = Table(table, project.metadata, autoload=True, autoload_with=project.db)
 
-    if rna:
-        table = "rna_" + table
-        mapping = "rna_" + mapping
-        impacts = "rna_" + impacts
+    new_vars = select(temp_table.c.chrom, temp_table.c.pos, temp_table.c.id, temp_table.c.ref,
+                      temp_table.c.alt).distinct().join(
+        variants_table,
+        (temp_table.c.chrom == variants_table.c.chrom) &
+        (temp_table.c.pos == variants_table.c.pos) &
+        (temp_table.c.ref == variants_table.c.ref) &
+        (temp_table.c.alt == variants_table.c.alt), isouter=True
+    ).add_columns(variants_table.c.variant_id).filter(variants_table.c.variant_id==None)
 
-    if filtered:
-        table = "filtered_" + table
-        mapping = "filtered_" + mapping
-        impacts = "filtered_" + impacts
-        temp = "temp_filt_variants"
-    else:
-        temp = "temp_all_variants"
+    new_vars = project.session.execute(new_vars).fetchall()
 
-    temp_table = Table(temp, meta, autoload=True, autoload_with=engine)
-    variants_table = Table(table, meta, autoload=True, autoload_with=engine)
-
-    if create:
-        distinct_vars = select(temp_table.c.chrom, temp_table.c.pos, temp_table.c.id, temp_table.c.ref,
-                               temp_table.c.alt).distinct()
-        distinct_vars = pd.DataFrame(session.execute(distinct_vars).fetchall())
-        distinct_vars.columns = ["chrom", "pos", "id", "ref", "alt"]
-        distinct_vars.to_sql(table, engine, index=False, if_exists="append")
-        del distinct_vars
-        gc.collect()
-    else:
-        new_vars = select(temp_table.c.chrom, temp_table.c.pos, temp_table.c.id, temp_table.c.ref,
-                          temp_table.c.alt).distinct().join(
-            variants_table,
-            (temp_table.c.chrom == variants_table.c.chrom) &
-            (temp_table.c.pos == variants_table.c.pos) &
-            (temp_table.c.ref == variants_table.c.ref) &
-            (temp_table.c.alt == variants_table.c.alt)
-        ).filter(variants_table.c.variant_id is None)
-
-        new_vars = session.execute(new_vars)
-
-        if len(new_vars) > 0:
-            new_vars = pd.DataFrame(new_vars)
-            new_vars.columns = ["chrom", "pos", "id", "ref", "alt", "variant_id"]
-            new_vars = new_vars.drop(columns=["id"])
-            new_vars.to_sql(table, engine, index=False, if_exists="append")
+    if len(new_vars) > 0:
+        new_vars = pd.DataFrame(new_vars)
+        new_vars.columns = ["chrom", "pos", "id", "ref", "alt", "variant_id"]
+        new_vars = new_vars.drop(columns=["variant_id"])
+        new_vars.to_sql(table, project.db, index=False, if_exists="append")
 
     mapping_cols = ["samplename", "qual", "filter"] + formats
     # TODO this is very slow because of the join, would need to find a different way to get the data
@@ -269,10 +222,10 @@ def add_to_variant_tables(engine, meta, session, fields, formats, create=True, f
                         (temp_table.c.ref == variants_table.c.ref) &
                         (temp_table.c.alt == variants_table.c.alt)
     ).add_columns(variants_table.c.variant_id)
-    variant_mapping = pd.DataFrame(session.execute(mapping_query).fetchall())
+    variant_mapping = pd.DataFrame(project.session.execute(mapping_query).fetchall())
     mapping_cols.append("variant_id")
     variant_mapping.columns = mapping_cols
-    variant_mapping.to_sql(mapping, engine, index=False, if_exists="append")
+    variant_mapping.to_sql(mapping, project.db, index=False, if_exists="append")
     del variant_mapping
     gc.collect()
 
@@ -284,12 +237,45 @@ def add_to_variant_tables(engine, meta, session, fields, formats, create=True, f
                         (temp_table.c.ref == variants_table.c.ref) &
                         (temp_table.c.alt == variants_table.c.alt)
     ).add_columns(variants_table.c.variant_id)
-    variant_impacts = pd.DataFrame(session.execute(impacts_query).fetchall())
+    variant_impacts = pd.DataFrame(project.session.execute(impacts_query).fetchall())
     fields.append("variant_id")
     variant_impacts.columns = fields
-    variant_impacts.to_sql(impacts, engine, index=False, if_exists="append")
+    variant_impacts.to_sql(impacts, project.db, index=False, if_exists="append")
 
     del variant_impacts
     gc.collect()
 
-    engine.execute("drop table if exists {}".format(temp))
+    project.db.execute("drop table if exists temp_variants")
+
+
+# this is specific to what i'm doing it's not flexible and will need some refactoring to be made more useful
+def import_data(file, project, meta_read_fun, assay_params, create_assay=True):
+
+    with open(assay_params["config"]) as y:
+        config = yaml.safe_load(y)
+
+    tables = create_tables(config["tables"], project, create_assay)
+    mapping_file = meta_read_fun(file, **config["meta_read_fun_params"])
+
+    info_name=config["parsing_params"]["info_name"]
+    info_sep=config["parsing_params"]["info_sep"]
+
+    all_vcfs=mapping_file[config["vcf_col"]].tolist()
+
+    fields, formats=compare_fields(all_vcfs, info_name, info_sep ,
+                                   config["parsing_params"]["not_same"])
+
+    for index, row in mapping_file.iterrows():
+        print(row["samplename"])
+        vcf=VariantFile(row[config["vcf_col"]])
+        type_dict= config["tables"][config["parsing_params"]["impact_table"]]
+        variants=parse_vcf(vcf, fields, formats,type_dict,
+                           info_name, info_sep, config["parsing_params"]["ignore"])
+        variants["samplename"]=row[config["sample_col"]]
+        variants.to_sql(config["temp_table"], project.db, index=False, if_exists="append")
+        add_to_variant_tables(project, fields, formats, tables[2][0], tables[1][0], tables[0][0], config["temp_table"])
+
+
+
+
+

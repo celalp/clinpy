@@ -1,0 +1,70 @@
+# these tables are created based on rsem output, if you have different needs you can adjust them accordingly.
+# I'm also not doing any checking between the genome and the rsem results and I'm assuming you are using the same
+# genome and annotations if you are not you should
+
+assay_name: rsem_expression
+filename: expression.csv
+
+# this one is for metadata, basically samplename and file location
+meta_read_fun_params:
+  header: 0
+  sep: "\t"
+
+# this one is for reading the actual data
+read_fun_params:
+  header: 0
+  sep: "\t"
+
+gene_expression_column: gene_expression
+transcript_expression_column: isoform_expression
+sample_col: sample_id
+
+
+tables:
+
+  gene_expression:
+    samplename:
+      type: fk
+      fk:
+        table: samples
+        column: sample_id
+      index: true
+      pk: true
+    gene:
+      type: str
+      index: true
+      pk: true
+    expected_count:
+      type: float
+      index: false
+    tpm:
+      type: float
+      index: false
+    fpkm:
+      type: float
+      index: false
+
+  transcript_expression:
+    samplename:
+      type: fk
+      fk:
+        table: samples
+        column: sample_id
+      index: true
+      pk: true
+    transcript:
+      type: str
+      index: true
+      pk: true
+    expected_count:
+      type: float
+      index: false
+    tpm:
+      type: float
+      index: false
+    fpkm:
+      type: float
+      index: false
+    isopct:
+      type: float
+      index: false
