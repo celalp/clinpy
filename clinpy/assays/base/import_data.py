@@ -76,7 +76,7 @@ def import_data(file, project, read_fun, assay_params, read_fun_params, create_a
 
 
 
-    tables=create_tables(config, project, create_assay)
+    tables=create_tables(config["tables"], project, create_assay)
 
     for table in tables:
         import_meta(read_fun, file, project, table[0], table[0], table[2], read_fun_params)
