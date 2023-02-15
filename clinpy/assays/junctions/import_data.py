@@ -3,6 +3,7 @@ from sqlalchemy import Table, select
 import gc
 import yaml
 from clinpy.utils.utils import dict_to_table
+from datetime import datetime
 
 # TODO create table as
 
@@ -100,5 +101,8 @@ def import_data(file, project, meta_read_fun, read_fun, assay_params, create_ass
         import_temp_junction(row[junction_col], read_fun, config["read_fun_params"],
                              row[sample_col], project, config["temp_table"],
                              assay_params["annotated_introns"], config["min_junc_reads"])
+        print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "{} all junctions have been imported to the temp table".format(row[sample_col]))
         #this is here to reduce memory footrpint at the expense of runtime
+        print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "starting to add junction and map to samples")
         add_to_junction_tables(project, tables[0][0], tables[1][0], config["temp_table"])
+        print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "Finish {} junction import".format(row[sample_col]))
