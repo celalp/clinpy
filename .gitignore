@@ -2,3 +2,9 @@
 **/.ipynb_checkpoints
 **/__pycache__
 **/*.ipynb
+__pycache__/.idea/
+*.egg-info/
+.installed.cfg
+*.egg
+eggs/
+.pybiomart.sqlite
