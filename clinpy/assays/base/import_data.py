@@ -25,19 +25,36 @@ def import_meta(read_fun, excel, project, table, sheet, id_cols, read_fun_params
     if table in project.metadata.tables.keys(): #there is a table check for duplicates
         data_table=Table(table, project.metadata, autoload=True, autoload_with=project.db)
         query = select(*[data_table.c[col] for col in id_cols])
-
-        current = project.session.execute(query).fetchall()
-        if data.shape[0] == 0:
-            print("There are no {} specified but there are existing {} in the database".format(sheet, sheet))
+        
+        current = list(map(list,project.session.execute(query).fetchall()))#make the query output into list
+        input_id = data[id_cols].values.tolist()
+        
+        if len(current) == 0:
+            #first time import
+            data.to_sql(table, project.db, index=False, if_exists="append")
+            print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "{} have been imported".format(sheet))
+        elif current == input_id:
+            #if there are the same, dont edit the current table
+            print("no change on the {}".format(sheet))
         else:
-            isin(data[id_cols].values.tolist(), [dat[0] for dat in current], table)
+            data = data.iloc[len(current):len(input_id),]
+            print(data)
+            data.to_sql(table, project.db, index=False, if_exists="append")
+            print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "{} have been updated".format(sheet))
+
+        #current = project.session.execute(query).fetchall()
+        #if data.shape[0] == 0:
+        #    print("There are no {} specified but there are existing {} in the database".format(sheet, sheet))
+        #else:
+        #    isin(data[id_cols].values.tolist(), [dat[0] for dat in current], table)
     else: #there is no table
+        print("frist time create")
         if data.shape[0] > 0:
             raise ValueError("There are no {} specified in the file and there are no {} in "
                          "database".format(sheet, sheet))
 
-    data.to_sql(table, project.db, index=False, if_exists="append")
-    print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "{} have been imported".format(sheet))
+    #data.to_sql(table, project.db, index=False, if_exists="append")
+    #print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "{} have been imported".format(sheet))
 
 def create_tables(params, project, create=True):
     """
