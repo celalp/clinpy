@@ -38,7 +38,17 @@ def import_data(file, project, meta_read_fun, read_fun, assay_params, create_ass
     tables=create_tables(config["tables"], project, create_assay)
 
     mapping_file=meta_read_fun(file, **config["meta_read_fun_params"])
-
+    
+    if create_assay:
+        #tables=create_tables(config["tables"], project, create_assay)
+        print("first time create table")
+    else:
+        sample_table = Table('gene_expression', project.metadata, autoload=True, autoload_with=project.db)#may need to change
+        query_existed_sample = select(sample_table.c.samplename).distinct()#make sure table has sample_id
+        existed_sample = [id for id, in project.db.execute(query_existed_sample)]
+        mapping_file = mapping_file[~mapping_file['sample_id'].isin(existed_sample)]
+        print("add new data to the existed table")
+    
     gene_col=config["gene_expression_column"]
     tx_col = config["transcript_expression_column"]
     sample_col=config["sample_col"]

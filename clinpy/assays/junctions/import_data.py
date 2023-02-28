@@ -18,7 +18,7 @@ def modify_strand(df):
         raise ValueError("unknown value in strand column")
 
 def import_temp_junction(file, read_fun, read_fun_params, samplename, project, temp_table,
-                         annotated_introns, min_junc_reads=10):
+                         annotated_introns, min_junc_reads):
     j = read_fun(file, **read_fun_params)
     j["samplename"] = samplename
     # star annotated is useless because it is actually not the annotated but annotated+detected in
@@ -92,6 +92,16 @@ def import_data(file, project, meta_read_fun, read_fun, assay_params, create_ass
 
     tables=create_tables(config["tables"], project, create_assay)
     mapping_file=meta_read_fun(file, **config["meta_read_fun_params"])
+    
+    if create_assay:
+        #tables=create_tables(config["tables"], project, create_assay)
+        print("first time create table")
+    else:
+        sample_table = Table('sample_to_junctions', project.metadata, autoload=True, autoload_with=project.db)#may need to change
+        query_existed_sample = select(sample_table.c.samplename).distinct()#make sure table has sample_id
+        existed_sample = [id for id, in project.db.execute(query_existed_sample)]
+        mapping_file = mapping_file[~mapping_file['sample_id'].isin(existed_sample)]
+        print("add new data to the existed table")
 
     sample_col=config["sample_col"]
     junction_col=config["junction_col"]
