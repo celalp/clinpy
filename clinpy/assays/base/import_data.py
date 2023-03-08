@@ -26,8 +26,8 @@ def import_meta(read_fun, excel, project, table, sheet, id_cols, read_fun_params
         data_table=Table(table, project.metadata, autoload=True, autoload_with=project.db)
         query = select(*[data_table.c[col] for col in id_cols])
         
-        current = list(map(list,project.session.execute(query).fetchall()))#make the query output into list
-        input_id = data[id_cols].values.tolist()
+        current = sorted(list(map(list,project.session.execute(query).fetchall())))#make the query output into list
+        input_id = sorted(data[id_cols].values.tolist())
         
         if len(current) == 0:
             #first time import
