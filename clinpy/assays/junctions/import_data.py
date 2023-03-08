@@ -20,6 +20,7 @@ def modify_strand(df):
 def import_temp_junction(file, read_fun, read_fun_params, samplename, project, temp_table,
                          annotated_introns, min_junc_reads):
     j = read_fun(file, **read_fun_params)
+    j = j[:100]
     j["samplename"] = samplename
     # star annotated is useless because it is actually not the annotated but annotated+detected in
     # first pass
@@ -91,7 +92,8 @@ def import_data(file, project, meta_read_fun, read_fun, assay_params, create_ass
         config = yaml.safe_load(y)
 
     tables=create_tables(config["tables"], project, create_assay)
-    mapping_file=meta_read_fun(file, **config["meta_read_fun_params"])
+    mapping_file=meta_read_fun(file, sheet_name=config['sheetname'], comment="#")
+    #mapping_file=meta_read_fun(file, **config["meta_read_fun_params"])
     
     if create_assay:
         #tables=create_tables(config["tables"], project, create_assay)
@@ -101,6 +103,11 @@ def import_data(file, project, meta_read_fun, read_fun, assay_params, create_ass
         query_existed_sample = select(sample_table.c.samplename).distinct()#make sure table has sample_id
         existed_sample = [id for id, in project.db.execute(query_existed_sample)]
         mapping_file = mapping_file[~mapping_file['sample_id'].isin(existed_sample)]
+        if mapping_file.empty:
+            print("no update on the {}".format(config['sheetname']))
+            return None
+        else:
+            print("add new data to the existed table")
         print("add new data to the existed table")
 
     sample_col=config["sample_col"]
