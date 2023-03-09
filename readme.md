@@ -1,3 +1,21 @@
+# This branch has a lot of my own edits
+
+Might mostly only suitable for my own use?
+
+1. all the input meta are in one excel, example: my_inputdata/full_meta.excel
+
+2. I added an assay to import junctions.tsv from the clinical pipline
+
+3. Added new samples after the initial database is created should be available. Just add directly on the full_meta excel
+
+4. Edited a bit the yaml for the different assays
+
+5. Slow on HPF
+
+6. The clinpy_create.py should be working fine, if you are using my input in the my_inputdata folder
+
+-- Lauren
+
 # Major refactoring branch
 
 This branch will have some breaking changes, the order of dev milestones are as follows:
