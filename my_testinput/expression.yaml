@@ -1,0 +1,63 @@
+assay_name: rsem_expression
+sheetname: expression
+
+meta_read_fun_params:
+  header: 0
+  sep: "\t"
+
+read_fun_params:
+  header: 0
+  sep: "\t"
+
+gene_expression_column: gene_expression
+transcript_expression_column: isoform_expression
+sample_col: sample_id
+
+tables:
+
+  gene_expression:
+    samplename:
+      type: str
+      fk:
+        table: samples
+        column: sample_id
+      index: true
+      pk: true
+    gene:
+      type: str
+      index: true
+      pk: true
+    expected_count:
+      type: float
+      index: false
+    tpm:
+      type: float
+      index: false
+    fpkm:
+      type: float
+      index: false
+
+  transcript_expression:
+    samplename:
+      type: str
+      fk:
+        table: samples
+        column: sample_id
+      index: true
+      pk: true
+    transcript:
+      type: str
+      index: true
+      pk: true
+    expected_count:
+      type: float
+      index: false
+    tpm:
+      type: float
+      index: false
+    fpkm:
+      type: float
+      index: false
+    isopct:
+      type: float
+      index: false

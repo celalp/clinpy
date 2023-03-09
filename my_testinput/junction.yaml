@@ -1,0 +1,64 @@
+assay_name: star_junctions
+sheetname: junctions
+
+meta_read_fun_params:
+  header: 0
+  sep: "\t"
+  low_memory: false
+
+
+read_fun_params:
+  header: null
+  sep: "\t"
+  low_memory: false
+
+
+min_junc_reads: 0
+
+temp_table: temp_junctions
+junction_col: junctions
+sample_col: sample_id
+
+tables:
+  junctions:
+    id:
+      type: int
+      pk: true,
+      index: true
+    chrom:
+      type: str
+      index: true
+    start:
+      type: int
+      index: true
+    end:
+      type: int
+      index: true
+    strand:
+      type: str
+      index: true
+    annotated:
+      type: bool
+      index: true
+
+  sample_to_junctions: # one junction can be in more than one sample no need to duplicate data
+    samplename:
+      type: str
+      fk:
+        table: samples
+        column: sample_id
+      pk: true
+      index: true
+    junction:
+      type: str
+      fk:
+        table: junctions
+        column: id
+      index: true
+      pk: true
+    uniq_map:
+      type: int
+      index: false
+    multi_map:
+      type: int
+      index: false

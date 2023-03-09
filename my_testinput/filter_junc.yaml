@@ -1,0 +1,40 @@
+sheetname: interesting_junctions
+
+meta_read_fun_params:
+  header: 0
+  sep: "\t"
+  low_memory: false
+
+
+read_fun_params:
+  header: 0
+  sep: "\t"
+  low_memory: false
+  usecols: ["chrom", "start", "end", "strand", "class", "sample_ratio","sample_count"]
+
+temp_table: temp_interesting_junctions
+junction_col: filtered_junctions
+sample_col: sample_id
+
+tables:
+  interesting_junctions:
+    samplename:
+      type: str
+      fk:
+        table: samples
+        column: sample_id
+      pk: true
+      index: true
+    interesting_junction:
+      type: str
+      pk: true 
+      index: true
+    sample_ratio:
+      type: float
+      index: false
+    sample_count:
+      type: int
+      index: false
+    junction_type:
+      type: str
+      index: false
