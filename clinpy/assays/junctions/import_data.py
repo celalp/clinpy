@@ -20,7 +20,7 @@ def modify_strand(df):
 def import_temp_junction(file, read_fun, read_fun_params, samplename, project, temp_table,
                          annotated_introns, min_junc_reads):
     j = read_fun(file, **read_fun_params)
-    j = j[:100]
+    #j = j[:100] # test purpose
     j["samplename"] = samplename
     # star annotated is useless because it is actually not the annotated but annotated+detected in
     # first pass
@@ -87,6 +87,7 @@ def create_tables(params, project, create=True):
             tab.create()
 
     return tables
+
 def import_data(file, project, meta_read_fun, read_fun, assay_params, create_assay=True):
     with open(assay_params["config"]) as y:
         config = yaml.safe_load(y)

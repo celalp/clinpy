@@ -2,6 +2,7 @@ import pandas as pd
 from clinpy.utils.utils import dict_to_table
 from sqlalchemy import Table, select
 import yaml
+from datetime import datetime
 
 #TODO docstings
 
@@ -60,6 +61,7 @@ def import_data(file, project, meta_read_fun, read_fun, assay_params, create_ass
     sample_col=config["sample_col"]
 
     for index, row in mapping_file.iterrows():
+        print("[" + datetime.now().strftime("%Y/%m/%d %H:%M:%S") + "] " + "starting to add expression for {}".format(row[sample_col]))
         import_expression(row[gene_col], read_fun, row[sample_col], project.db, gene=True,
                           read_fun_params=config["read_fun_params"])
         import_expression(row[tx_col], read_fun, row[sample_col], project.db, gene=False,
