@@ -12,13 +12,13 @@ import argparse as arg
 from datetime import datetime
 import yaml
 import sys
-from config import *
+#from config import *
 
 import pandas as pd
 import openpyxl
 
 from clinpy.utils.utils import dict_to_table, dict_to_engine
-from clinpy import  project
+from clinpy.project import Project
 
 from sqlalchemy import MetaData
 from sqlalchemy.orm import Session
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     #TODO import config
-    exec(open("config.py").read())
+    exec(open(args.config).read())#Temp?
     
     db=dict_to_engine(database['dbtype'],database['name'])
     project=Project(db_params=database)
