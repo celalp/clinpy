@@ -1,0 +1,37 @@
+sheetname: interesting_expr
+
+meta_read_fun_params:
+  header: 0
+  sep: "\t"
+  low_memory: false
+
+
+read_fun_params:
+  header: 0
+  sep: "\t"
+  low_memory: false
+  usecols: ["Ensembl_id", "TPM_z_score", "direction"]
+
+expr_col: filtered_expressions
+sample_col: sample_id
+
+tables:
+  interesting_expr:
+    samplename:
+      type: str
+      fk:
+        table: samples
+        column: sample_id
+      pk: true
+      index: true
+    gene:
+      type: str
+      pk: true
+      index: true
+    TPM_z_score:
+      type: int
+      index: false
+    direction:
+      type: str
+      index: false
+
