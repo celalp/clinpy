@@ -22,7 +22,13 @@ def import_interesting_expr(file, read_fun, samplename, engine, read_fun_params)
     #dat = dat[:100] test purpose
     dat["samplename"] = samplename
 
-    dat.columns = ["gene", "TPM_z_score", "direction","samplename"]
+    #select only true and then drop the outlier column
+
+    dat.columns = ["gene", "TPM_z_score","expression_outlier_z","direction","samplename"]
+    dat = dat.loc[dat['expression_outlier_z']]
+    dat = dat.drop('expression_outlier_z', axis=1)
+    print(dat.shape)
+    
     dat.drop_duplicates(subset=['gene'], inplace=True, keep='first')
 
     dat.to_sql('interesting_expr', engine, if_exists="append", index=False)

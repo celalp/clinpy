@@ -10,7 +10,7 @@ read_fun_params:
   header: 0
   sep: "\t"
   low_memory: false
-  usecols: ["Ensembl_id", "TPM_z_score", "direction"]
+  usecols: ["Ensembl_id", "TPM_z_score", "direction","expression_outlier_z"]
 
 expr_col: filtered_expressions
 sample_col: sample_id
